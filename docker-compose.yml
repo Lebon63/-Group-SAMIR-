@@ -13,6 +13,10 @@ services:
       - db
     networks:
       - internal
+    labels:
+       - "traefik.enable=true"
+       - "traefik.http.routers.backend-router.rule=Host(localhost)""
+       - "traefik.http.services.backend-service.loadbalancer.server.port=8000"
 
   db:
     image: postgres:14
