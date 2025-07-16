@@ -1,23 +1,17 @@
-[project]
+[tool.poetry]
 name = "backend"
 version = "0.1.0"
 description = ""
-authors = [
-    {name = "Ful Marvel",email = "fulmarvel82@gmail.com"}
-]
-readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "fastapi (>=0.116.1,<0.117.0)",
-    "uvicorn[standard] (>=0.35.0,<0.36.0)",
-    "sqlalchemy (>=2.0.41,<3.0.0)",
-    "psycopg2-binary (>=2.9.10,<3.0.0)",
-    "python-dotenv (>=1.1.1,<2.0.0)"
-]
+authors = ["Ful Marvel <fulmarvel82@gmail.com>"]
+packages = [{include = "backend"}]
 
-[tool.poetry]
-packages = [{include = "backend", from = "src"}]
-
+[tool.poetry.dependencies]
+python = ">=3.11"
+fastapi = ">=0.116.1,<0.117.0"
+uvicorn = {extras = ["standard"], version = ">=0.35.0,<0.36.0"}
+sqlalchemy = ">=2.0.41,<3.0.0"
+psycopg2-binary = ">=2.9.10,<3.0.0"
+python-dotenv = ">=1.1.1,<2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^25.1.0"

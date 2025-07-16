@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Heart, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -17,8 +16,7 @@ const Auth = () => {
     confirmPassword: "",
     firstName: "",
     lastName: "",
-    role: "",
-    specialty: "",
+    role: "patient", // fixed to patient for signup
     phoneNumber: ""
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -33,17 +31,15 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate authentication
+    // Simulate API
     setTimeout(() => {
       setIsLoading(false);
       toast({
         title: isLogin ? "Welcome back!" : "Account created successfully!",
         description: isLogin ? "You have been signed in." : "Please sign in to continue.",
       });
-      
-      // Navigate to appropriate dashboard based on role
-      const role = formData.role || "patient";
-      navigate(`/dashboard/${role}`);
+
+      navigate(`/dashboard/${formData.role || "patient"}`);
     }, 1500);
   };
 
@@ -61,13 +57,12 @@ const Auth = () => {
             <span className="text-2xl font-bold text-foreground">DGH Care</span>
           </div>
           <h1 className="text-2xl font-bold text-foreground">
-            {isLogin ? "Welcome Back" : "Create Account"}
+            {isLogin ? "Welcome Back" : "Create Patient Account"}
           </h1>
           <p className="text-muted-foreground">
-            {isLogin 
-              ? "Sign in to access your healthcare dashboard" 
-              : "Join our healthcare community"
-            }
+            {isLogin
+              ? "Sign in to access your healthcare dashboard"
+              : "Patient registration portal"}
           </p>
         </div>
 
@@ -88,7 +83,7 @@ const Auth = () => {
                         id="firstName"
                         value={formData.firstName}
                         onChange={(e) => handleInputChange("firstName", e.target.value)}
-                        required={!isLogin}
+                        required
                       />
                     </div>
                     <div className="space-y-2">
@@ -97,45 +92,10 @@ const Auth = () => {
                         id="lastName"
                         value={formData.lastName}
                         onChange={(e) => handleInputChange("lastName", e.target.value)}
-                        required={!isLogin}
+                        required
                       />
                     </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role</Label>
-                    <Select onValueChange={(value) => handleInputChange("role", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select your role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="patient">Patient</SelectItem>
-                        <SelectItem value="doctor">Doctor</SelectItem>
-                        <SelectItem value="admin">Administrator</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {formData.role === "doctor" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="specialty">Medical Specialty</Label>
-                      <Select onValueChange={(value) => handleInputChange("specialty", value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your specialty" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cardiology">Cardiology</SelectItem>
-                          <SelectItem value="neurology">Neurology</SelectItem>
-                          <SelectItem value="pediatrics">Pediatrics</SelectItem>
-                          <SelectItem value="orthopedics">Orthopedics</SelectItem>
-                          <SelectItem value="general">General Medicine</SelectItem>
-                          <SelectItem value="surgery">Surgery</SelectItem>
-                          <SelectItem value="dermatology">Dermatology</SelectItem>
-                          <SelectItem value="psychiatry">Psychiatry</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="phoneNumber">Phone Number</Label>
@@ -145,7 +105,7 @@ const Auth = () => {
                       value={formData.phoneNumber}
                       onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
                       placeholder="+237 XXX XXX XXX"
-                      required={!isLogin}
+                      required
                     />
                   </div>
                 </>
@@ -179,11 +139,7 @@ const Auth = () => {
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
@@ -196,15 +152,15 @@ const Auth = () => {
                     type="password"
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                    required={!isLogin}
+                    required
                   />
                 </div>
               )}
 
-              <Button 
-                type="submit" 
-                variant="healthcare" 
-                className="w-full" 
+              <Button
+                type="submit"
+                variant="healthcare"
+                className="w-full"
                 disabled={isLoading}
               >
                 {isLoading ? "Processing..." : (isLogin ? "Sign In" : "Create Account")}
@@ -213,20 +169,19 @@ const Auth = () => {
 
             <div className="text-center mt-6">
               <p className="text-muted-foreground">
-                {isLogin ? "Don't have an account?" : "Already have an account?"}
+                {isLogin ? "Don’t have a patient account?" : "Already have an account?"}
                 <Button
                   variant="link"
                   className="ml-1 p-0"
                   onClick={() => setIsLogin(!isLogin)}
                 >
-                  {isLogin ? "Sign up" : "Sign in"}
+                  {isLogin ? "Patient Sign up" : "Sign in"}
                 </Button>
               </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Language Support Notice */}
         <div className="text-center mt-6">
           <p className="text-sm text-muted-foreground">
             Available in: English • Français • Douala • Bassa • Ewondo
