@@ -5,8 +5,8 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 import os
-from db.database import Base, engine, SessionLocal
-from db.models import Patient  # Import Patient from models.py
+from backend.app.db.database import Base, engine, SessionLocal
+from backend.app.db.models import Patient  # Import Patient from models.py
 
 # Initialize FastAPI app
 app = FastAPI()

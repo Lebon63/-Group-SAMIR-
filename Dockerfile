@@ -18,11 +18,10 @@ RUN curl -sSL https://install.python-poetry.org | python3 - && \
 # Disable Poetry virtualenvs
 ENV POETRY_VIRTUALENVS_CREATE=false
 
-# Copy dependency files
+# Copy dependency files from backend/
 COPY pyproject.toml poetry.lock /app/
-
 # Copy backend source code BEFORE installing dependencies
-COPY backend /app/backend
+COPY . /app/backend
 
 # Install dependencies
 RUN poetry install --no-interaction --no-ansi
@@ -34,4 +33,4 @@ COPY . /app
 EXPOSE 8000
 
 # Start the app
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
