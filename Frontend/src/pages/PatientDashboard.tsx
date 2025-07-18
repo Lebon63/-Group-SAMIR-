@@ -573,7 +573,7 @@ const [newReminder, setNewReminder] = useState({
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Frequency</label>
-            <Select onValueChange={(value) => setMedicationForm(prev => ({ ...prev, frequency: value }))}>
+            <Select onValueChange={(value) => setNewReminder(prev => ({ ...prev, frequency: value }))}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select frequency" />
                       </SelectTrigger>

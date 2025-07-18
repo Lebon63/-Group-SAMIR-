@@ -35,7 +35,18 @@ class Feedback(Base):
     comment = Column(Text, nullable=True)
     voice_transcript = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationships
+      # Relationships
     patient = relationship("Patient", back_populates="feedbacks")
     category = relationship("FeedbackCategory")  
+    #doctor
+class Doctor(Base):
+    __tablename__ = "doctors"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    specialty = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password = Column(String, nullable=False)  # Consider hashing in production
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+  

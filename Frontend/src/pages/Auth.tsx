@@ -3,13 +3,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Heart, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+
+interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  user_id: number;
+  user_role: string;
+  name?: string;
+  first_name?: string;
+}
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -31,97 +39,117 @@ const Auth = () => {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!isLogin && formData.password !== formData.confirmPassword) {
-    toast({
-      variant: "destructive",
-      title: "Password Mismatch",
-      description: "Passwords do not match.",
-    });
-    return;
-  }
+    if (!isLogin && formData.password !== formData.confirmPassword) {
+      toast({
+        variant: "destructive",
+        title: "Password Mismatch",
+        description: "Passwords do not match.",
+      });
+      return;
+    }
 
-  // Check for admin credentials (temporary solution)
-  if (isLogin && formData.email === "admin@gmail.com" && formData.password === "admin") {
-    // Store admin token in localStorage
-    localStorage.setItem('authToken', 'admin-token');
-    localStorage.setItem('userRole', 'admin');
-    localStorage.setItem('userName', 'Admin User');
-    
-    toast({
-      title: "Welcome Admin!",
-      description: "Redirecting to admin dashboard.",
-    });
-    
-    navigate('/dashboard/admin');
-    return;
-  }
+    // Check for admin credentials (temporary solution)
+    if (isLogin && formData.email === "admin@gmail.com" && formData.password === "admin") {
+      localStorage.setItem('authToken', 'admin-token');
+      localStorage.setItem('userRole', 'admin');
+      localStorage.setItem('userName', 'Admin User');
+      
+      toast({
+        title: "Welcome Admin!",
+        description: "Redirecting to admin dashboard.",
+      });
+      
+      navigate('/dashboard/admin');
+      return;
+    }
 
-  setIsLoading(true);
-  try {
-    const url = `${backendUrl}/auth/${isLogin ? "token" : "patient"}`;
-    const payload = isLogin
-      ? {
-          email: formData.email,
-          password: formData.password,
+    setIsLoading(true);
+    try {
+      if (isLogin) {
+        // First try to authenticate using the unified login endpoint
+        const response = await fetch(`${backendUrl}/auth/token`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Invalid email or password");
         }
-      : {
-          email: formData.email,
-          password: formData.password,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          phone_number: formData.phoneNumber,
-        };
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload)
-    });
+        const data: LoginResponse = await response.json();
 
-    const data = await response.json();
+        // Store authentication data
+        localStorage.setItem('authToken', data.access_token);
+        localStorage.setItem('userRole', data.user_role);
+        localStorage.setItem('userId', data.user_id.toString());
+        
+        // Set user name based on role
+        if (data.user_role === "doctor") {
+          localStorage.setItem('userName', data.name || 'Doctor');
+          toast({
+            title: "Welcome Doctor!",
+            description: "You have been signed in.",
+          });
+          navigate('/dashboard/doctor');
+        } else if (data.user_role === "patient") {
+          localStorage.setItem('userName', data.first_name || 'Patient');
+          toast({
+            title: "Welcome back!",
+            description: "You have been signed in.",
+          });
+          navigate('/dashboard/patient');
+        } else {
+          throw new Error("Unknown user role");
+        }
+      } else {
+        // Registration remains for patients only
+        const response = await fetch(`${backendUrl}/auth/patient`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            phone_number: formData.phoneNumber,
+          }),
+        });
 
-    if (!response.ok) {
-      throw new Error(
-        data?.detail || 
-        data?.message || 
-        isLogin ? "Invalid email or password" : "Registration failed"
-      );
-    }
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Registration failed");
+        }
 
-    if (isLogin) {
-      localStorage.setItem('authToken', data.access_token);
-      localStorage.setItem('userRole', 'patient'); // Assuming default role is patient
-      localStorage.setItem('userName', `${data.first_name || 'User'}`);
-      
+        toast({
+          title: "Account created!",
+          description: "Please sign in to continue.",
+        });
+        setIsLogin(true);
+      }
+    } catch (error: any) {
       toast({
-        title: "Welcome back!",
-        description: "You have been signed in.",
+        variant: "destructive",
+        title: isLogin ? "Sign-in Failed" : "Registration Failed",
+        description: error.message || "An error occurred. Please try again.",
       });
-      
-      navigate('/dashboard/patient');
-    } else {
-      toast({
-        title: "Account created!",
-        description: "Please sign in to continue.",
-      });
-      setIsLogin(true);
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error: any) {
-    toast({
-      variant: "destructive",
-      title: isLogin ? "Sign-in Failed" : "Registration Failed",
-      description: error.message,
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-   return (
+  };
+return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
@@ -175,9 +203,6 @@ const Auth = () => {
                       />
                     </div>
                   </div>
-
-                  
-                
 
                   <div className="space-y-2">
                     <Label htmlFor="phoneNumber">Phone Number</Label>

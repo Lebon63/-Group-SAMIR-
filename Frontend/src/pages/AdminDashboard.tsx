@@ -16,9 +16,7 @@ import {
   Star, 
   TrendingUp, 
   Search, 
-  Filter,
   Menu,
-  ClipboardList,
   Settings,
   Shield,
   X,
@@ -28,6 +26,35 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/DashboardLayout";
 
+interface Doctor {
+  id: string;
+  name: string;
+  specialty: string;
+  email: string;
+  status: string;
+  patientCount?: number;
+  averageRating?: number;
+}
+
+interface Patient {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  registrationDate: string;
+  status: string;
+}
+
+interface Feedback {
+  id: string;
+  patient: string;
+  doctor: string;
+  rating: number;
+  comment: string;
+  date: string;
+  sentiment: string;
+}
+
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -35,6 +62,9 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddDoctorForm, setShowAddDoctorForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [newDoctor, setNewDoctor] = useState({
     name: "",
     specialty: "",
@@ -43,6 +73,35 @@ const AdminDashboard = () => {
     status: "Active"
   });
   const { toast } = useToast();
+
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+
+  const specialtyOptions = [
+    { value: "cardiology", label: "Cardiology" },
+    { value: "neurology", label: "Neurology" },
+    { value: "pediatrics", label: "Pediatrics" },
+    { value: "orthopedics", label: "Orthopedics" },
+    { value: "general", label: "General Medicine" },
+    { value: "surgery", label: "Surgery" }
+  ];
+
+  // Calculate analytics from fetched data
+  const calculateFeedbackAnalytics = () => {
+    const totalFeedback = feedback.length;
+    const averageRating = feedback.reduce((acc, curr) => acc + curr.rating, 0) / totalFeedback || 0;
+    const positivePercentage = Math.round((feedback.filter(f => f.rating >= 4).length) / totalFeedback * 100) || 0;
+    const recentFeedback = feedback.slice(0, 3);
+
+    return {
+      totalFeedback,
+      averageRating,
+      positivePercentage,
+      recentFeedback,
+      responseTime: "2.3 hours" // This would come from your backend
+    };
+  };
+
+  const feedbackAnalytics = calculateFeedbackAnalytics();
 
   // Responsive sidebar behavior
   useEffect(() => {
@@ -57,30 +116,65 @@ const AdminDashboard = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const doctors = [
-    { id: 1, name: "Dr. Pierre Nkomo", specialty: "Cardiology", email: "pierre.nkomo@dgh.cm", status: "Active", patients: 156, rating: 4.8 },
-    { id: 2, name: "Dr. Sarah Mbarga", specialty: "Cardiology", email: "sarah.mbarga@dgh.cm", status: "Active", patients: 134, rating: 4.7 },
-    { id: 3, name: "Dr. Jean Fofie", specialty: "Neurology", email: "jean.fofie@dgh.cm", status: "Active", patients: 98, rating: 4.9 },
-    { id: 4, name: "Dr. Marie Ateba", specialty: "Neurology", email: "marie.ateba@dgh.cm", status: "Inactive", patients: 0, rating: 4.6 }
-  ];
+  // Fetch data from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [doctorsRes, patientsRes, feedbackRes] = await Promise.all([
+          fetch(`${backendUrl}/doctors`),
+          fetch(`${backendUrl}/patients`),
+          fetch(`${backendUrl}/feedback`)
+        ]);
 
-  const patients = [
-    { id: 1, name: "Marie Ngono", email: "marie.ngono@email.cm", phone: "+237 677 123 456", registrationDate: "2024-01-10", status: "Active" },
-    { id: 2, name: "Paul Biya", email: "paul.biya@email.cm", phone: "+237 677 234 567", registrationDate: "2024-01-08", status: "Active" },
-    { id: 3, name: "Grace Mbarga", email: "grace.mbarga@email.cm", phone: "+237 677 345 678", registrationDate: "2024-01-05", status: "Inactive" }
-  ];
+        if (!doctorsRes.ok) throw new Error("Failed to fetch doctors");
+        if (!patientsRes.ok) throw new Error("Failed to fetch patients");
+        if (!feedbackRes.ok) throw new Error("Failed to fetch feedback");
 
-  const feedbackAnalytics = {
-    totalFeedback: 1247,
-    averageRating: 4.6,
-    positivePercentage: 87,
-    responseTime: "2.3 hours",
-    recentFeedback: [
-      { id: 1, patient: "Marie Ngono", doctor: "Dr. Pierre Nkomo", rating: 5, comment: "Excellent service", date: "2024-01-15", sentiment: "positive" },
-      { id: 2, patient: "Paul Biya", doctor: "Dr. Jean Fofie", rating: 4, comment: "Good consultation but waiting time was long", date: "2024-01-14", sentiment: "neutral" },
-      { id: 3, patient: "Grace Mbarga", doctor: "Dr. Sarah Mbarga", rating: 5, comment: "Very professional", date: "2024-01-13", sentiment: "positive" }
-    ]
-  };
+        const doctorsData = await doctorsRes.json();
+        const patientsData = await patientsRes.json();
+        const feedbackData = await feedbackRes.json();
+
+        // Transform data to match frontend expectations
+        setDoctors(doctorsData.map((doctor: any) => ({
+          id: doctor.id.toString(),
+          name: doctor.name,
+          specialty: doctor.specialty,
+          email: doctor.email,
+          status: doctor.is_active ? "Active" : "Inactive",
+          patientCount: 0, // You'll need to implement this
+          averageRating: 0 // You'll need to implement this
+        })));
+
+        setPatients(patientsData.map((patient: any) => ({
+          id: patient.id.toString(),
+          name: `${patient.first_name} ${patient.last_name}`,
+          email: patient.email,
+          phone: patient.phone_number,
+          registrationDate: patient.created_at,
+          status: patient.is_active ? "Active" : "Inactive"
+        })));
+
+        setFeedback(feedbackData.map((feedback: any) => ({
+          id: feedback.id.toString(),
+          patient: `Patient ${feedback.patient_id}`,
+          doctor: "Unknown", // You'll need to implement this
+          rating: feedback.rating || 0,
+          comment: feedback.comment || "",
+          date: feedback.created_at,
+          sentiment: feedback.rating >= 4 ? "positive" : "neutral"
+        })));
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load data from server",
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchData();
+  }, [backendUrl, toast]);
 
   const handleExportData = (type: string) => {
     toast({
@@ -93,27 +187,101 @@ const AdminDashboard = () => {
     setShowAddDoctorForm(true);
   };
 
-  const handleSubmitNewDoctor = () => {
-    // In a real app, you would send this data to your backend
-    toast({
-      title: "Doctor Account Created",
-      description: "New doctor account has been created successfully.",
-    });
-    setShowAddDoctorForm(false);
-    setNewDoctor({
-      name: "",
-      specialty: "",
-      email: "",
-      password: "",
-      status: "Active"
-    });
+  const handleSubmitNewDoctor = async () => {
+    try {
+      const response = await fetch(`${backendUrl}/doctors`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newDoctor.name,
+          specialty: newDoctor.specialty,
+          email: newDoctor.email,
+          password: newDoctor.password,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to create doctor");
+      }
+
+      toast({
+        title: "Doctor Account Created",
+        description: "New doctor account has been saved to the database.",
+      });
+
+      setShowAddDoctorForm(false);
+      setNewDoctor({
+        name: "",
+        specialty: "",
+        email: "",
+        password: "",
+        status: "Active"
+      });
+
+      // Refresh doctors list
+      const updated = await fetch(`${backendUrl}/doctors`);
+      const updatedData = await updated.json();
+      setDoctors(updatedData.map((doctor: any) => ({
+        id: doctor.id.toString(),
+        name: doctor.name,
+        specialty: doctor.specialty,
+        email: doctor.email,
+        status: doctor.is_active ? "Active" : "Inactive",
+        patientCount: 0,
+        averageRating: 0
+      })));
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleDeactivateUser = (userType: string, userName: string) => {
-    toast({
-      title: "User Status Updated",
-      description: `${userName} has been deactivated.`,
-    });
+  const handleDeactivateUser = async (userId: string, userType: string) => {
+    try {
+      const response = await fetch(`${backendUrl}/doctors/${userId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to toggle doctor status");
+      }
+
+      toast({
+        title: "Doctor Status Updated",
+        description: "Doctor status has been updated.",
+      });
+
+      // Refresh doctors list
+      const updated = await fetch(`${backendUrl}/doctors`);
+      const data = await updated.json();
+      setDoctors(data.map((doctor: any) => ({
+        id: doctor.id.toString(),
+        name: doctor.name,
+        specialty: doctor.specialty,
+        email: doctor.email,
+        status: doctor.is_active ? "Active" : "Inactive",
+        patientCount: 0,
+        averageRating: 0
+      })));
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
   const navItems = [
@@ -203,7 +371,7 @@ const AdminDashboard = () => {
                       <Users className="h-8 w-8 text-primary" />
                       <div>
                         <p className="text-sm text-muted-foreground">Total Doctors</p>
-                        <p className="text-2xl font-bold">24</p>
+                        <p className="text-2xl font-bold">{doctors.length}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -215,7 +383,7 @@ const AdminDashboard = () => {
                       <Users className="h-8 w-8 text-secondary" />
                       <div>
                         <p className="text-sm text-muted-foreground">Active Patients</p>
-                        <p className="text-2xl font-bold">1,247</p>
+                        <p className="text-2xl font-bold">{patients.filter(p => p.status === "Active").length}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -239,7 +407,7 @@ const AdminDashboard = () => {
                       <TrendingUp className="h-8 w-8 text-success" />
                       <div>
                         <p className="text-sm text-muted-foreground">Avg Rating</p>
-                        <p className="text-2xl font-bold">{feedbackAnalytics.averageRating}</p>
+                        <p className="text-2xl font-bold">{feedbackAnalytics.averageRating.toFixed(1)}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -340,11 +508,21 @@ const AdminDashboard = () => {
                             </div>
                             <div className="space-y-2">
                               <label className="text-sm font-medium">Specialty</label>
-                              <Input 
-                                placeholder="Cardiology" 
+                              <Select
                                 value={newDoctor.specialty}
-                                onChange={(e) => setNewDoctor({...newDoctor, specialty: e.target.value})}
-                              />
+                                onValueChange={(value) => setNewDoctor({...newDoctor, specialty: value})}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select specialty" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {specialtyOptions.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                           <div className="space-y-4">
@@ -447,11 +625,11 @@ const AdminDashboard = () => {
                                 <TableCell className="font-medium">{doctor.name}</TableCell>
                                 <TableCell>{doctor.specialty}</TableCell>
                                 <TableCell>{doctor.email}</TableCell>
-                                <TableCell>{doctor.patients}</TableCell>
+                                <TableCell>{doctor.patientCount || 0}</TableCell>
                                 <TableCell>
                                   <div className="flex items-center space-x-1">
                                     <Star className="h-4 w-4 fill-warning text-warning" />
-                                    <span>{doctor.rating}</span>
+                                    <span>{doctor.averageRating?.toFixed(1) || 'N/A'}</span>
                                   </div>
                                 </TableCell>
                                 <TableCell>
@@ -465,7 +643,7 @@ const AdminDashboard = () => {
                                     <Button 
                                       variant="destructive" 
                                       size="sm"
-                                      onClick={() => handleDeactivateUser("doctor", doctor.name)}
+                                      onClick={() => handleDeactivateUser(doctor.id, "doctor")}
                                     >
                                       Deactivate
                                     </Button>
@@ -497,7 +675,12 @@ const AdminDashboard = () => {
                     <div className="space-y-4">
                       <div className="flex items-center space-x-2">
                         <Search className="h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="Search patients..." className="max-w-sm" />
+                        <Input 
+                          placeholder="Search patients..." 
+                          className="max-w-sm"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
                         <Select>
                           <SelectTrigger className="w-40">
                             <SelectValue placeholder="Filter by status" />
@@ -527,7 +710,7 @@ const AdminDashboard = () => {
                               <TableCell className="font-medium">{patient.name}</TableCell>
                               <TableCell>{patient.email}</TableCell>
                               <TableCell>{patient.phone}</TableCell>
-                              <TableCell>{patient.registrationDate}</TableCell>
+                              <TableCell>{new Date(patient.registrationDate).toLocaleDateString()}</TableCell>
                               <TableCell>
                                 <Badge variant={patient.status === "Active" ? "default" : "secondary"}>
                                   {patient.status}
@@ -540,7 +723,7 @@ const AdminDashboard = () => {
                                   <Button 
                                     variant="destructive" 
                                     size="sm"
-                                    onClick={() => handleDeactivateUser("patient", patient.name)}
+                                    onClick={() => handleDeactivateUser(patient.id, "patient")}
                                   >
                                     Deactivate
                                   </Button>
@@ -602,36 +785,20 @@ const AdminDashboard = () => {
                       <CardTitle>Department Performance</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span>Cardiology</span>
-                          <div className="flex items-center space-x-2">
-                            <Star className="h-4 w-4 fill-warning text-warning" />
-                            <span>4.8</span>
+                      {specialtyOptions.map(specialty => {
+                        const specialtyDoctors = doctors.filter(d => d.specialty === specialty.value);
+                        const avgRating = specialtyDoctors.reduce((acc, curr) => acc + (curr.averageRating || 0), 0) / (specialtyDoctors.length || 1);
+                        
+                        return (
+                          <div key={specialty.value} className="flex items-center justify-between">
+                            <span>{specialty.label}</span>
+                            <div className="flex items-center space-x-2">
+                              <Star className="h-4 w-4 fill-warning text-warning" />
+                              <span>{avgRating.toFixed(1)}</span>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Neurology</span>
-                          <div className="flex items-center space-x-2">
-                            <Star className="h-4 w-4 fill-warning text-warning" />
-                            <span>4.7</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Pediatrics</span>
-                          <div className="flex items-center space-x-2">
-                            <Star className="h-4 w-4 fill-warning text-warning" />
-                            <span>4.6</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>General Medicine</span>
-                          <div className="flex items-center space-x-2">
-                            <Star className="h-4 w-4 fill-warning text-warning" />
-                            <span>4.5</span>
-                          </div>
-                        </div>
-                      </div>
+                        );
+                      })}
                     </CardContent>
                   </Card>
                 </div>

@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from fastapi import FastAPI, Depends, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordBearer
@@ -13,7 +13,7 @@ from pydantic import BaseModel, EmailStr
 from jose import JWTError, jwt
 
 from db.database import Base, engine, SessionLocal
-from db.models import Patient, FeedbackCategory, Feedback
+from db.models import Patient, FeedbackCategory, Feedback, Doctor
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -34,12 +34,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Configuration
+# CORS Configuration - Updated to handle all required origins and methods
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080"],
+    allow_origins=["http://localhost:3000", "http://192.168.1.186:3000", "http://localhost:8080"],
     allow_credentials=True,
-    allow_methods=["POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -93,9 +93,15 @@ class Token(BaseModel):
     user_id: int
     user_role: str
 
-class UserResponse(PatientBase):
+class UserResponse(BaseModel):
     id: int
-    role: str = "patient"
+    email: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    name: Optional[str] = None
+    specialty: Optional[str] = None
+    role: str
 
 class FeedbackCategoryResponse(BaseModel):
     id: int
@@ -116,6 +122,22 @@ class FeedbackResponse(BaseModel):
     voice_transcript: Optional[str]
     created_at: datetime
     category_name: str
+
+    class Config:
+        from_attributes = True
+
+class DoctorCreate(BaseModel):
+    name: str
+    specialty: str
+    email: EmailStr
+    password: str
+
+class DoctorOut(BaseModel):
+    id: int
+    name: str
+    specialty: str
+    email: str
+    is_active: bool
 
     class Config:
         from_attributes = True
@@ -150,14 +172,22 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
-        if user_id is None:
+        user_role: str = payload.get("role")
+        if user_id is None or user_role is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
     
-    user = db.query(Patient).filter(Patient.id == int(user_id)).first()
+    if user_role == "patient":
+        user = db.query(Patient).filter(Patient.id == int(user_id)).first()
+    elif user_role == "doctor":
+        user = db.query(Doctor).filter(Doctor.id == int(user_id)).first()
+    else:
+        raise credentials_exception
+    
     if user is None:
         raise credentials_exception
+    
     return user
 
 # Initialize feedback categories
@@ -183,9 +213,8 @@ def health_check():
     return {"status": "healthy", "service": "DGH Care API"}
 
 # Authentication endpoints
-@app.post("/auth/patient", response_model=PatientResponse)  # No trailing slash
+@app.post("/auth/patient", response_model=PatientResponse)
 def create_patient(patient: PatientCreate, db: Session = Depends(get_db)):
-    # ... existing implementation ...
     existing_patient = db.query(Patient).filter(Patient.email == patient.email).first()
     if existing_patient:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -204,36 +233,110 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db)):
     db.refresh(db_patient)
     return db_patient
 
+@app.post("/auth/doctor", response_model=DoctorOut)
+def create_doctor(doctor: DoctorCreate, db: Session = Depends(get_db)):
+    existing_doctor = db.query(Doctor).filter(Doctor.email == doctor.email).first()
+    if existing_doctor:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = get_password_hash(doctor.password)
+    db_doctor = Doctor(
+        email=doctor.email,
+        password=hashed_password,
+        name=doctor.name,
+        specialty=doctor.specialty,
+        is_active=True
+    )
+    db.add(db_doctor)
+    db.commit()
+    db.refresh(db_doctor)
+    return db_doctor
+
 @app.post("/auth/token", response_model=Token)
 def login(login_data: LoginRequest, db: Session = Depends(get_db)):
+    # Check patient first
     patient = db.query(Patient).filter(Patient.email == login_data.email).first()
-    if not patient or not verify_password(login_data.password, patient.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
-    if not patient.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is inactive")
+    if patient and verify_password(login_data.password, patient.password):
+        if not patient.is_active:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is inactive")
+        
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": str(patient.id), "role": "patient"}, expires_delta=access_token_expires
+        )
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": patient.id,
+            "user_role": "patient"
+        }
     
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(patient.id)}, expires_delta=access_token_expires
-    )
+    # If not patient, check doctor
+    doctor = db.query(Doctor).filter(Doctor.email == login_data.email).first()
+    if doctor and verify_password(login_data.password, doctor.password):
+        if not doctor.is_active:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is inactive")
+        
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": str(doctor.id), "role": "doctor"}, expires_delta=access_token_expires
+        )
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": doctor.id,
+            "user_role": "doctor"
+        }
     
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user_id": patient.id,
-        "user_role": "patient"
-    }
+    # If neither found
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
 
 @app.get("/auth/me", response_model=UserResponse)
-def get_current_user_info(current_user: Patient = Depends(get_current_user)):
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "first_name": current_user.first_name,
-        "last_name": current_user.last_name,
-        "phone_number": current_user.phone_number,
-        "role": "patient"
-    }
+def get_current_user_info(current_user: Union[Patient, Doctor] = Depends(get_current_user)):
+    if isinstance(current_user, Patient):
+        return {
+            "id": current_user.id,
+            "email": current_user.email,
+            "first_name": current_user.first_name,
+            "last_name": current_user.last_name,
+            "phone_number": current_user.phone_number,
+            "role": "patient"
+        }
+    else:  # Doctor
+        return {
+            "id": current_user.id,
+            "email": current_user.email,
+            "name": current_user.name,
+            "specialty": current_user.specialty,
+            "role": "doctor"
+        }
+
+# Admin Dashboard Endpoints
+@app.get("/patients", response_model=List[PatientResponse])
+def get_all_patients(db: Session = Depends(get_db)):
+    return db.query(Patient).all()
+
+@app.get("/feedback", response_model=List[FeedbackResponse])
+def get_all_feedback(db: Session = Depends(get_db)):
+    feedbacks = db.query(Feedback, FeedbackCategory).join(
+        FeedbackCategory, Feedback.category_id == FeedbackCategory.id
+    ).all()
+    
+    return [
+        {
+            "id": feedback.id,
+            "patient_id": feedback.patient_id,
+            "category_id": feedback.category_id,
+            "rating": feedback.rating,
+            "comment": feedback.comment,
+            "voice_transcript": feedback.voice_transcript,
+            "created_at": feedback.created_at,
+            "category_name": category.name
+        }
+        for feedback, category in feedbacks
+    ]
 
 @app.get("/patients/{patient_id}", response_model=PatientResponse)
 def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: Patient = Depends(get_current_user)):
@@ -305,6 +408,40 @@ def get_patient_feedback(
         }
         for feedback, category in feedbacks
     ]
+
+@app.get("/doctors", response_model=List[DoctorOut])
+def get_doctors(db: Session = Depends(get_db)):
+    return db.query(Doctor).all()
+
+@app.post("/doctors", response_model=DoctorOut)
+def create_doctor(doctor: DoctorCreate, db: Session = Depends(get_db)):
+    existing_doctor = db.query(Doctor).filter(Doctor.email == doctor.email).first()
+    if existing_doctor:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = get_password_hash(doctor.password)
+    db_doctor = Doctor(
+        name=doctor.name,
+        specialty=doctor.specialty,
+        email=doctor.email,
+        password=hashed_password,
+        is_active=True
+    )
+    db.add(db_doctor)
+    db.commit()
+    db.refresh(db_doctor)
+    return db_doctor
+
+@app.patch("/doctors/{doctor_id}/status", response_model=DoctorOut)
+def toggle_doctor_status(doctor_id: int, db: Session = Depends(get_db)):
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    
+    doctor.is_active = not doctor.is_active
+    db.commit()
+    db.refresh(doctor)
+    return doctor
 
 @app.get("/support/contact")
 def get_support_info():
