@@ -93,7 +93,7 @@ const Auth = () => {
         localStorage.setItem('userRole', data.user_role);
         localStorage.setItem('userId', data.user_id.toString());
         
-        // Set user name based on role
+        
         if (data.user_role === "doctor") {
           localStorage.setItem('userName', data.name || 'Doctor');
           toast({

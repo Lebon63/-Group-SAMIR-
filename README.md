@@ -55,3 +55,9 @@ pip
 - Node.js
 - npm and yarn
 - Git
+# To view our code
+- access the Frontend folder on cmd
+- type npm run dev
+- access admin dashboard at /dashboard/admin with credentials Email: admin@gmail.com, Password: admin
+- doctor dashboard at /dashboard/doctor
+- patient dashboard at /dashboard/patient
