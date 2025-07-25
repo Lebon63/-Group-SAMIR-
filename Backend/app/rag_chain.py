@@ -6,8 +6,8 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
 def load_rag_chain():
-    # Load TinyLLaMA model
-    model_path = "models/tinyllama-med"  # <- update if your path is different
+    # === Load TinyLLaMA model and tokenizer ===
+    model_path = "C:/Users/Allan/Desktop/patient-voice-clarity-bot-main/Backend/models/finetuned_tinyllama"
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
@@ -15,6 +15,7 @@ def load_rag_chain():
         torch_dtype=torch.float16
     )
 
+    # === HF pipeline wrapping ===
     pipe = pipeline(
         "text-generation",
         model=model,
@@ -25,14 +26,22 @@ def load_rag_chain():
         repetition_penalty=1.1
     )
 
+    # === LangChain LLM wrapper ===
     llm = HuggingFacePipeline(pipeline=pipe)
 
+    # === Load vector DB (FAISS) ===
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vectordb = FAISS.load_local("faiss_index", embeddings)
+    vectordb = FAISS.load_local(
+        folder_path="C:/Users/Allan/Desktop/patient-voice-clarity-bot-main/Backend/faiss_index",
+        embeddings=embeddings,
+        allow_dangerous_deserialization=True
+    )
 
+    # === Create Retrieval-based QA Chain ===
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         retriever=vectordb.as_retriever(),
         return_source_documents=True
     )
+
     return qa_chain

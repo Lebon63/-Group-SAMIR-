@@ -43,27 +43,45 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   ];
 
   // Mock LLM response - replace with actual LLM integration
-  const generateResponse = async (userMessage: string): Promise<string> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Mock responses based on common patient queries
-    const lowercaseMessage = userMessage.toLowerCase();
-    
-    if (lowercaseMessage.includes('medication') || lowercaseMessage.includes('pill')) {
-      return "I can help explain your medications. Please share the name of the medication you'd like to know about, and I'll explain how to take it, potential side effects, and what it's treating in simple terms. Always follow your doctor's specific instructions.";
-    }
-    
-    if (lowercaseMessage.includes('diagnosis') || lowercaseMessage.includes('condition')) {
-      return "I'm here to help you understand your diagnosis better. Could you tell me which condition you'd like me to explain? I'll break it down in easy-to-understand language and explain what it means for your health.";
-    }
-    
-    if (lowercaseMessage.includes('side effect')) {
-      return "Side effects can be concerning. I can explain common side effects of medications and treatments, and help you understand which ones are normal and which ones you should report to your doctor immediately.";
-    }
-    
-    return "Thank you for your question. I'm designed to help explain medical information in simple terms. Could you be more specific about what you'd like to know about your diagnosis, treatment, or medications? Remember, I'm here to educate, not to provide medical advice.";
-  };
+ const generateResponse = async (userMessage: string): Promise<string> => {
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  const message = userMessage.toLowerCase();
+
+  if (message.includes('medication') || message.includes('pill')) {
+    return "Your medication helps manage your condition. It's important to take it at the same time every day. Let me know the name of your medication for more details.";
+  }
+
+  if (message.includes('diagnosis') || message.includes('condition')) {
+    return "Your diagnosis is the result of tests or symptoms you shared with your doctor. I can explain more if you tell me what condition you're referring to.";
+  }
+
+  if (message.includes('side effect')) {
+    return "Common side effects include tiredness, nausea, or headaches. Let me know the specific drug you're concerned about.";
+  }
+
+  if (message.includes('treatment')) {
+    return "Treatments are designed to manage or cure your condition. I can explain your treatment plan in simple terms. What treatment are you referring to?";
+  }
+
+  if (message.includes('blood pressure')) {
+    return "Blood pressure measures the force of blood against your arteries. A normal reading is around 120/80. High blood pressure means the heart is working too hard.";
+  }
+
+  if (message.includes('diabetes')) {
+    return "Diabetes affects how your body uses sugar. Managing it includes diet, exercise, and sometimes medication like insulin.";
+  }
+
+  if (message.includes('cancer')) {
+    return "Cancer is when cells in the body grow out of control. Treatment options may include surgery, chemotherapy, or radiation depending on the type.";
+  }
+
+  if (message.includes('asthma')) {
+    return "Asthma causes breathing problems due to inflamed airways. Inhalers help open the airways and make breathing easier.";
+  }
+
+  return "I'm here to help you understand medical information clearly. Please provide more specific questions about your health, medication, or treatment.";
+};
+
 
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
