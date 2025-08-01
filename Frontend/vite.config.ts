@@ -4,7 +4,6 @@ import path from 'path';
 import { componentTagger } from 'lovable-tagger';
 
 export default defineConfig(({ mode }) => {
-  
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
@@ -29,9 +28,20 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
-    
+    build: {
+      rollupOptions: {
+        external: [], // Remove axios from here if previously added
+      },
+      commonjsOptions: {
+        include: [/node_modules/],
+      },
+    },
     define: {
-      'process.env': env
+      'process.env.NODE_ENV': JSON.stringify(mode),
+      ...Object.keys(env).reduce((acc, key) => {
+        acc[`process.env.${key}`] = JSON.stringify(env[key]);
+        return acc;
+      }, {}),
     }
   }
 });
