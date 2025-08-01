@@ -64,5 +64,5 @@
 | System Component               | Live Deployment Link                     |
 |--------------------------------|-----------------------------------------|
 | Patient Feedback System (Track 1) | [Launch Feedback Portal](https://cerulean-sundae-b9837e.netlify.app/) |
-| LLM Chatbot (Track 2)          | [Access AI Assistant]( ) |
+| LLM Chatbot (Track 2)          | [Access AI Assistant]( https://statuesque-bienenstitch-849638.netlify.app/) |
 | Blood Bank System (Track 3)    | [View Blood Bank]( ) | 
