@@ -9,7 +9,6 @@
     "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "postinstall": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -64,7 +63,7 @@
     "twilio": "^5.8.0",
     "vaul": "^0.9.3",
     "zod": "^3.23.8",
-    "axios": "^1.6.2",
+    "axios": "^1.6.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
