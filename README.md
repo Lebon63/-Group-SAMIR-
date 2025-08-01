@@ -61,7 +61,8 @@
    npm run dev
    ```
 # DEPLOYMENT
-To visit our complete integrated project click the link
-For Track 1(Patient Feedback and Reminder system):
-For Track 2(LLM Chatbot):
-For Track 3(Bloodbank):  
+| System Component               | Live Deployment Link                     |
+|--------------------------------|-----------------------------------------|
+| Patient Feedback System (Track 1) | [Launch Feedback Portal](https://cerulean-sundae-b9837e.netlify.app/) |
+| LLM Chatbot (Track 2)          | [Access AI Assistant]( ) |
+| Blood Bank System (Track 3)    | [View Blood Bank]( ) | 
