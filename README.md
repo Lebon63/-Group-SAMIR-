@@ -61,6 +61,7 @@
    npm run dev
    ```
 # DEPLOYMENT
+Run full project at  [here](https://dgh-landing.netlify.app/)
 | System Component               | Live Deployment Link                     |
 |--------------------------------|-----------------------------------------|
 | Patient Feedback System (Track 1) | [Launch Feedback Portal](https://cerulean-sundae-b9837e.netlify.app/) |
