@@ -19,7 +19,7 @@
 
 1. Navigate to the backend directory:
    ```
-   cd uploads/backend
+   cd /backend
    ```
 
 2. Install dependencies:
@@ -43,7 +43,7 @@
 
 1. Navigate to the frontend directory:
    ```
-   cd uploads/Frontend
+   cd /Frontend
    ```
 
 2. Install dependencies:
@@ -60,23 +60,8 @@
    ```
    npm run dev
    ```
-
-## Speech-to-Text Feature
-
-The system uses the Web Speech API for speech recognition. This is currently supported in:
-- Chrome
-- Edge
-- Safari
-
-For Firefox users, the application will default to text input only.
-
-## Twilio SMS Integration
-
-The system is integrated with Twilio for sending medication and appointment reminders via SMS. To use this feature:
-
-1. Create a Twilio account at [twilio.com](https://www.twilio.com)
-2. Get your Account SID and Auth Token from the Twilio Console
-3. Buy a phone number from Twilio
-4. Set the environment variables as described in the backend setup
-
-When patients set reminders, they'll automatically receive SMS notifications based on their preferences.
+# DEPLOYMENT
+To visit our complete integrated project click the link
+For Track 1(Patient Feedback and Reminder system):
+For Track 2(LLM Chatbot):
+For Track 3(Bloodbank):  
