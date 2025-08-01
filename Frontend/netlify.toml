@@ -1,8 +1,10 @@
 [build]
   base = "Frontend"
   publish = "dist"
-  command = "npm install && npm run build"
+  command = "npm ci && npm run build"  # Use npm ci for clean install
 
+[context.production.environment]
+  NODE_VERSION = "18" 
 [[redirects]]
   from = "/*"
   to = "/index.html"
