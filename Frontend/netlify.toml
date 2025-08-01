@@ -1,11 +1,11 @@
 [build]
   publish = "dist"
-  command = "npm ci && npm run build"
+  command = "npm install && npm run build"
 
 [context.production.environment]
   NODE_VERSION = "18" 
 [build.environment]
-  NPM_FLAGS = "--legacy-peer-deps"
+  NPM_FLAGS = "--no-corepack"
 [[redirects]]
   from = "/*"
   to = "/index.html"
