@@ -51,7 +51,7 @@ const translations: Record<string, Record<string, string>> = {
     "Reminders": "Reminders",
     
     // Feedback form
-    "Submit Feedback": "Submit Feedback",
+  
     "Medical Department": "Medical Department",
     "Select department": "Select department",
     "Feedback Category": "Feedback Category",
