@@ -1,46 +1,40 @@
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import React from "react";
 import { useTranslation } from "@/context/TranslationContext";
-import { Globe } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export const LanguageSelector = () => {
-  const { language, setLanguage } = useTranslation();
+export default function LanguageSelector() {
+  const { language, changeLanguage, translate, availableLanguages } = useTranslation();
 
-  const languages = [
-    { code: 'en', name: 'English', flag: '🇬🇧' },
-    { code: 'fr', name: 'Français', flag: '🇫🇷' },
-    { code: 'douala', name: 'Douala', flag: '🇨🇲' },
-    { code: 'bassa', name: 'Bassa', flag: '🇨🇲' },
-    { code: 'ewondo', name: 'Ewondo', flag: '🇨🇲' },
-  ];
+  const handleLanguageChange = (newLang: string) => {
+    changeLanguage(newLang);
+  };
 
-  const currentLanguage = languages.find(lang => lang.code === language) || languages[0];
+  // Display names for the languages
+  const languageNames: Record<string, string> = {
+    english: "English",
+    french: "Français",
+    bassa: "Bàsàa",
+    ewondo: "Ewondo",
+    douala: "Duala"
+  };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="hover:bg-transparent">
-          <Globe className="h-5 w-5" />
-          <span className="sr-only">Toggle language</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {languages.map((lang) => (
-          <DropdownMenuItem
-            key={lang.code}
-            onClick={() => setLanguage(lang.code as any)}
-            className={language === lang.code ? 'bg-accent' : ''}
-          >
-            <span className="mr-2">{lang.flag}</span>
-            {lang.name}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="language-selector flex items-center">
+      <span className="mr-2 text-sm font-medium text-muted-foreground">
+        {translate("Language")}:
+      </span>
+      <Select value={language} onValueChange={handleLanguageChange}>
+        <SelectTrigger className="w-[130px] h-8">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {availableLanguages.map((lang) => (
+            <SelectItem key={lang} value={lang}>
+              {languageNames[lang]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
-};
+}

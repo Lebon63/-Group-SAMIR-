@@ -1,63 +1,82 @@
-# Multilingual Feedback and Reminder System
+# Douala General Hospital Patient Feedback and Reminder System
 
+## Features
 
-A patient portal application that allows users to:
-- Submit healthcare feedback in multiple languages
-- Manage medication reminders
-- View appointment history
-- Track prescribed medications
-- Contact support
+1. **Multilingual Patient Feedback Interface**
+   - Text input with voice recognition support (using Web Speech API)
+   - Star rating system for easy feedback
 
-# Features
+2. **Automated Patient Reminder System**
+   - SMS reminders via Twilio integration
+   - Appointment and medication reminders
 
-# Multilingual Support
-- English and French language options
-- Dynamic language switching without page reload
-- Translated UI elements, notifications, and form labels
+3. **Real-time Hospital Performance Dashboard**
+   - Visual summary of patient feedback and metrics
 
-# Feedback System
-- Category-based feedback submission
-- Doctor rating system (1-5 stars)
-- Voice recording option for feedback
-- Feedback history tracking
+## Setup Instructions
 
-#  Medication Reminders
-- Add/edit/delete medication reminders
-- Set custom frequencies (daily, weekly, etc.)
-- Visual medication tracking
+### Backend Setup
 
-#  Appointment Management
-- View upcoming appointments
-- See appointment status (pending/attended)
-- Filter by appointment type
+1. Navigate to the backend directory:
+   ```
+   cd uploads/backend
+   ```
 
-#  Medication Tracking
-- View prescribed medications
-- See dosage instructions
-- Track medication frequency
+2. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
 
-# Technologies Used
+3. Set up Twilio environment variables:
+   ```
+   export TWILIO_ACCOUNT_SID="your_account_sid"
+   export TWILIO_AUTH_TOKEN="your_auth_token"
+   export TWILIO_PHONE_NUMBER="your_twilio_phone_number"
+   ```
 
-# Frontend
-- React.js with TypeScript
-- Tailwind CSS for styling
-- Shadcn/ui component library
-- Lucide React for icons
-- i18next for internationalization
-- React Hook Form for form management
+4. Run the backend server:
+   ```
+   uvicorn app.main:app --reload
+   ```
 
-# Backend
-pip
+### Frontend Setup
 
+1. Navigate to the frontend directory:
+   ```
+   cd uploads/Frontend
+   ```
 
+2. Install dependencies:
+   ```
+   npm install
+   ```
 
-# Prerequisites
-- Node.js
-- npm and yarn
-- Git
-# To view our code
-- access the Frontend folder on cmd
-- type npm run dev
-- access admin dashboard at /dashboard/admin with credentials Email: admin@gmail.com, Password: admin
-- doctor dashboard at /dashboard/doctor
-- patient dashboard at /dashboard/patient
+3. Create a .env file with your backend URL:
+   ```
+   VITE_BACKEND_URL=http://localhost:8000
+   ```
+
+4. Run the frontend development server:
+   ```
+   npm run dev
+   ```
+
+## Speech-to-Text Feature
+
+The system uses the Web Speech API for speech recognition. This is currently supported in:
+- Chrome
+- Edge
+- Safari
+
+For Firefox users, the application will default to text input only.
+
+## Twilio SMS Integration
+
+The system is integrated with Twilio for sending medication and appointment reminders via SMS. To use this feature:
+
+1. Create a Twilio account at [twilio.com](https://www.twilio.com)
+2. Get your Account SID and Auth Token from the Twilio Console
+3. Buy a phone number from Twilio
+4. Set the environment variables as described in the backend setup
+
+When patients set reminders, they'll automatically receive SMS notifications based on their preferences.

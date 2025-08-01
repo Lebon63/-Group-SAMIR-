@@ -1,30 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 
-// Define the context shape
-interface TranslationContextType {
-  language: string;
-  changeLanguage: (lang: string) => void;
-  translate: (text: string) => string;
-  isTranslating: boolean;
-  availableLanguages: string[];
-}
-
-// Create context with default values
-const TranslationContext = createContext<TranslationContextType>({
-  language: "english",
-  changeLanguage: () => {},
-  translate: (text) => text,
-  isTranslating: false,
-  availableLanguages: ["english"]
-});
+const TranslationContext = createContext();
 
 export const useTranslation = () => useContext(TranslationContext);
 
 // Default translations for the app
-const translations: Record<string, Record<string, string>> = {
+const translations = {
   english: {
-    // General UI
     "Feedback": "Feedback",
     "Name": "Name",
     "Email": "Email",
@@ -39,33 +22,9 @@ const translations: Record<string, Record<string, string>> = {
     "Bassa": "Bassa",
     "Ewondo": "Ewondo",
     "Douala": "Douala",
-    
-    // Dashboard elements
-    "Patient Dashboard": "Patient Dashboard",
-    "Doctor Dashboard": "Doctor Dashboard",
-    "Admin Dashboard": "Admin Dashboard",
-    "Manage your healthcare feedback and appointments": "Manage your healthcare feedback and appointments",
-    "Total Feedback": "Total Feedback",
-    "Upcoming Appointments": "Upcoming Appointments",
-    "Medications": "Medications",
-    "Reminders": "Reminders",
-    
-    // Feedback form
-    "Submit Feedback": "Submit Feedback",
-    "Medical Department": "Medical Department",
-    "Select department": "Select department",
-    "Feedback Category": "Feedback Category",
-    "Doctor": "Doctor",
-    "Rating": "Rating",
-    "Comments": "Comments",
-    "Voice Input": "Voice Input",
-    "Stop Recording": "Stop Recording",
-    "Share your experience with the doctor and hospital services...": "Share your experience with the doctor and hospital services...",
-    "Missing Information": "Missing Information",
-    "Please fill in all required fields": "Please fill in all required fields",
+    // Add more translations as needed
   },
   french: {
-    // General UI
     "Feedback": "Retour d'information",
     "Name": "Nom",
     "Email": "E-mail",
@@ -80,33 +39,9 @@ const translations: Record<string, Record<string, string>> = {
     "Bassa": "Bassa",
     "Ewondo": "Ewondo",
     "Douala": "Douala",
-    
-    // Dashboard elements
-    "Patient Dashboard": "Tableau de bord du patient",
-    "Doctor Dashboard": "Tableau de bord du médecin",
-    "Admin Dashboard": "Tableau de bord de l'administrateur",
-    "Manage your healthcare feedback and appointments": "Gérez vos retours et rendez-vous médicaux",
-    "Total Feedback": "Total des retours",
-    "Upcoming Appointments": "Rendez-vous à venir",
-    "Medications": "Médicaments",
-    "Reminders": "Rappels",
-    
-    // Feedback form
-    "Submit Feedback": "Soumettre un retour",
-    "Medical Department": "Département médical",
-    "Select department": "Sélectionner un département",
-    "Feedback Category": "Catégorie de retour",
-    "Doctor": "Médecin",
-    "Rating": "Évaluation",
-    "Comments": "Commentaires",
-    "Voice Input": "Entrée vocale",
-    "Stop Recording": "Arrêter l'enregistrement",
-    "Share your experience with the doctor and hospital services...": "Partagez votre expérience avec le médecin et les services hospitaliers...",
-    "Missing Information": "Informations manquantes",
-    "Please fill in all required fields": "Veuillez remplir tous les champs obligatoires",
+    // Add more translations as needed
   },
   bassa: {
-    // General UI - Manually mapped words
     "Feedback": "Bôl bisu'u",
     "Name": "Jôl",
     "Email": "Email",
@@ -121,19 +56,9 @@ const translations: Record<string, Record<string, string>> = {
     "Bassa": "Bàsàa",
     "Ewondo": "Ewondo",
     "Douala": "Duala",
-    
-    // Dashboard elements
-    "Patient Dashboard": "Bisu'u i nworga",
-    "Doctor Dashboard": "Bisu'u i dokta",
-    "Admin Dashboard": "Bisu'u i nkengel",
-    "Manage your healthcare feedback and appointments": "Kɛɛgɛl mam magwés ni di bekee beba",
-    "Total Feedback": "Nsamba i bôl bisu'u",
-    "Upcoming Appointments": "Bekee beba",
-    "Medications": "Begwés",
-    "Reminders": "Bekôhôl",
+    // Add more translations as needed (mapped manually as example)
   },
   ewondo: {
-    // General UI - Manually mapped words
     "Feedback": "Ndiban",
     "Name": "Djoë",
     "Email": "Email",
@@ -148,19 +73,9 @@ const translations: Record<string, Record<string, string>> = {
     "Bassa": "Bassa",
     "Ewondo": "Ewondo",
     "Douala": "Duala",
-    
-    // Dashboard elements
-    "Patient Dashboard": "Etam mone-kwan",
-    "Doctor Dashboard": "Etam-menganga",
-    "Admin Dashboard": "Etam-koman",
-    "Manage your healthcare feedback and appointments": "Koman bidiban bioe bi menganga",
-    "Total Feedback": "Nsamba ndiban",
-    "Upcoming Appointments": "Akoan menganga",
-    "Medications": "Menganga",
-    "Reminders": "Nsam",
+    // Add more translations as needed (mapped manually as example)
   },
   douala: {
-    // General UI - Manually mapped words
     "Feedback": "Bwambo",
     "Name": "Dina",
     "Email": "Email",
@@ -175,29 +90,16 @@ const translations: Record<string, Record<string, string>> = {
     "Bassa": "Bassa",
     "Ewondo": "Ewondo",
     "Douala": "Duala",
-    
-    // Dashboard elements
-    "Patient Dashboard": "Epasi ya mokani",
-    "Doctor Dashboard": "Epasi ya mboli",
-    "Admin Dashboard": "Epasi ya koma",
-    "Manage your healthcare feedback and appointments": "Komano mese ma bwambo na mendene",
-    "Total Feedback": "Nyese bwambo",
-    "Upcoming Appointments": "Mendene mi ponda",
-    "Medications": "Bebwele",
-    "Reminders": "Bejandise",
+    // Add more translations as needed (mapped manually as example)
   }
 };
 
-interface TranslationProviderProps {
-  children: React.ReactNode;
-}
-
-export function TranslationProvider({ children }: TranslationProviderProps) {
+export function TranslationProvider({ children }) {
   const [language, setLanguage] = useState("english");
   const [isTranslating, setIsTranslating] = useState(false);
 
   // Function to translate text using LibreTranslate API (free and open source)
-  const translateWithAPI = async (text: string, targetLang: string): Promise<string> => {
+  const translateWithAPI = async (text, targetLang) => {
     if (targetLang === "english") return text;
     
     // Use API only for French (LibreTranslate supports it)
@@ -229,17 +131,17 @@ export function TranslationProvider({ children }: TranslationProviderProps) {
   };
 
   // Function to change the language
-  const changeLanguage = (lang: string) => {
+  const changeLanguage = (lang) => {
     setLanguage(lang);
     localStorage.setItem("preferred-language", lang);
   };
 
   // Function to translate text based on current language
-  const translate = (text: string): string => {
-    if (language === "english" || !text) return text;
+  const translate = (text) => {
+    if (language === "english") return text;
     
     // Check if we have a pre-defined translation
-    const translatedText = translations[language]?.[text];
+    const translatedText = translations[language][text];
     if (translatedText) return translatedText;
     
     // Return original text if no translation exists

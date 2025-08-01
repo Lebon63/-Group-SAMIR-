@@ -41,26 +41,36 @@ const Auth = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!isLogin && formData.password !== formData.confirmPassword) {
+    // Validate required fields for login
+    if (isLogin && (!formData.email || !formData.password)) {
       toast({
         variant: "destructive",
-        title: "Password Mismatch",
-        description: "Passwords do not match.",
+        title: "Missing Information",
+        description: "Please provide both email and password.",
       });
       return;
     }
 
-    // Check for admin credentials (temporary solution)
+    // Validate password match and required fields for registration
+    if (!isLogin && (formData.password !== formData.confirmPassword || !formData.email || !formData.firstName || !formData.lastName || !formData.phoneNumber)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Input",
+        description: formData.password !== formData.confirmPassword ? "Passwords do not match." : "Please fill in all required fields.",
+      });
+      return;
+    }
+
+    // Check for admin credentials (hardcoded)
     if (isLogin && formData.email === "admin@gmail.com" && formData.password === "admin") {
       localStorage.setItem('authToken', 'admin-token');
       localStorage.setItem('userRole', 'admin');
       localStorage.setItem('userName', 'Admin User');
-      
+      localStorage.setItem('user_name', 'Admin User'); // Added for consistency with PatientDashboard
       toast({
         title: "Welcome Admin!",
         description: "Redirecting to admin dashboard.",
       });
-      
       navigate('/dashboard/admin');
       return;
     }
@@ -68,7 +78,7 @@ const Auth = () => {
     setIsLoading(true);
     try {
       if (isLogin) {
-        // First try to authenticate using the unified login endpoint
+        // Authenticate using the unified login endpoint for doctors and patients
         const response = await fetch(`${backendUrl}/auth/token`, {
           method: "POST",
           headers: { 
@@ -92,17 +102,20 @@ const Auth = () => {
         localStorage.setItem('authToken', data.access_token);
         localStorage.setItem('userRole', data.user_role);
         localStorage.setItem('userId', data.user_id.toString());
-        
-        
+        localStorage.setItem('userName', data.first_name || data.name || '');
+        localStorage.setItem('user_name', data.first_name || data.name || '');
+        // Store email explicitly for doctors
         if (data.user_role === "doctor") {
-          localStorage.setItem('userName', data.name || 'Doctor');
+          localStorage.setItem('doctorEmail', formData.email);
+        }
+
+        if (data.user_role === "doctor") {
           toast({
             title: "Welcome Doctor!",
             description: "You have been signed in.",
           });
           navigate('/dashboard/doctor');
         } else if (data.user_role === "patient") {
-          localStorage.setItem('userName', data.first_name || 'Patient');
           toast({
             title: "Welcome back!",
             description: "You have been signed in.",
@@ -112,7 +125,7 @@ const Auth = () => {
           throw new Error("Unknown user role");
         }
       } else {
-        // Registration remains for patients only
+        // Registration for patients (unchanged)
         const response = await fetch(`${backendUrl}/auth/patient`, {
           method: "POST",
           headers: { 
@@ -149,7 +162,8 @@ const Auth = () => {
       setIsLoading(false);
     }
   };
-return (
+
+  return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">

@@ -1,109 +1,72 @@
-import { ReactNode } from "react";
+import React from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Heart, LogOut, Settings, Bell, User, Menu } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Heart } from "lucide-react";
+import { useTranslation } from "@/context/TranslationContext";
+import LanguageSelector from "./LanguageSelector";
 
 interface DashboardLayoutProps {
-  children: ReactNode;
+  children: React.ReactNode;
   userRole: "patient" | "doctor" | "admin";
   userName: string;
 }
 
-const DashboardLayout = ({ children, userRole, userName }: DashboardLayoutProps) => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
+const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userRole, userName }) => {
+  const { translate } = useTranslation();
 
-  const handleLogout = () => {
-    toast({
-      title: "Logged out successfully",
-      description: "You have been signed out of your account.",
-    });
-    navigate("/");
-  };
-
-  const getRoleColor = () => {
+  // Function to get role-specific dashboard path
+  const getRoleDashboardPath = () => {
     switch (userRole) {
-      case "patient": return "text-primary";
-      case "doctor": return "text-secondary";
-      case "admin": return "text-success";
-      default: return "text-primary";
-    }
-  };
-
-  const getRoleBadge = () => {
-    switch (userRole) {
-      case "patient": return "Patient";
-      case "doctor": return "Doctor";
-      case "admin": return "Administrator";
-      default: return "User";
+      case "patient":
+        return "/patient";
+      case "doctor":
+        return "/doctor";
+      case "admin":
+        return "/admin";
+      default:
+        return "/";
     }
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top Navigation */}
-      <nav className="sticky top-0 z-50 bg-card border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link to="/" className="flex items-center space-x-2">
-              <Heart className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold text-foreground">DGH Care</span>
+    <div className="min-h-screen flex flex-col">
+      {/* Header */}
+      <header className="sticky top-0 z-40 w-full border-b bg-card/80 backdrop-blur-sm">
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Link to={getRoleDashboardPath()} className="flex items-center gap-2">
+              <Heart className="h-6 w-6 text-primary" />
+              <span className="text-lg font-semibold">DGH Care</span>
             </Link>
-
-            {/* User Info & Actions */}
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm">
-                <Bell className="h-4 w-4" />
+          </div>
+          <div className="flex items-center gap-4">
+            {/* Add Language Selector here */}
+            <LanguageSelector />
+            <ThemeToggle />
+            <span className="text-sm text-muted-foreground">{userName}</span>
+            <Link to="/auth">
+              <Button variant="outline" size="sm">
+                {translate("Log Out")}
               </Button>
-              
-              <Card className="bg-muted/30">
-                <CardContent className="p-3">
-                  <div className="flex items-center space-x-3">
-                    <User className={`h-6 w-6 ${getRoleColor()}`} />
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-foreground">{userName}</p>
-                      <p className={`text-xs ${getRoleColor()}`}>{getRoleBadge()}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <ThemeToggle />
-              <Button variant="ghost" size="sm">
-                <Settings className="h-4 w-4" />
-              </Button>
-
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
-            </div>
+            </Link>
           </div>
         </div>
-      </nav>
+      </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
+      <main className="flex-1 bg-background">
+        <div className="container mx-auto">
+          {children}
+        </div>
       </main>
 
-      {/* Language Selector */}
-      <div className="fixed bottom-4 right-4">
-        <Card className="bg-card/80 backdrop-blur-sm">
-          <CardContent className="p-3">
-            <select className="text-xs bg-transparent border-none outline-none">
-              <option value="en">English</option>
-              <option value="fr">Français</option>
-              <option value="douala">Douala</option>
-              <option value="bassa">Bassa</option>
-              <option value="ewondo">Ewondo</option>
-            </select>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Footer */}
+      <footer className="border-t py-4">
+        <div className="container mx-auto text-center text-sm text-muted-foreground">
+          {translate("© 2024 Douala General Hospital. All rights reserved.")}
+        </div>
+      </footer>
     </div>
   );
 };

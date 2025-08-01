@@ -1,5 +1,5 @@
-// AdminDashboard.tsx
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +62,8 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddDoctorForm, setShowAddDoctorForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingDoctorId, setEditingDoctorId] = useState<string | null>(null);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
@@ -73,7 +75,7 @@ const AdminDashboard = () => {
     status: "Active"
   });
   const { toast } = useToast();
-
+  const navigate = useNavigate();
   const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
   const specialtyOptions = [
@@ -85,95 +87,153 @@ const AdminDashboard = () => {
     { value: "surgery", label: "Surgery" }
   ];
 
-  // Calculate analytics from fetched data
   const calculateFeedbackAnalytics = () => {
     const totalFeedback = feedback.length;
-    const averageRating = feedback.reduce((acc, curr) => acc + curr.rating, 0) / totalFeedback || 0;
-    const positivePercentage = Math.round((feedback.filter(f => f.rating >= 4).length) / totalFeedback * 100) || 0;
+    const averageRating = totalFeedback > 0 ? feedback.reduce((acc, curr) => acc + curr.rating, 0) / totalFeedback : 0;
+    const positivePercentage = totalFeedback > 0 ? Math.round((feedback.filter(f => f.rating >= 4).length) / totalFeedback * 100) : 0;
     const recentFeedback = feedback.slice(0, 3);
-
     return {
       totalFeedback,
       averageRating,
       positivePercentage,
       recentFeedback,
-      responseTime: "2.3 hours" // This would come from your backend
+      responseTime: "2.3 hours"
     };
   };
 
   const feedbackAnalytics = calculateFeedbackAnalytics();
 
-  // Responsive sidebar behavior
   useEffect(() => {
     const handleResize = () => {
       const isMobileView = window.innerWidth < 768;
       setIsMobile(isMobileView);
       setSidebarOpen(!isMobileView);
     };
-
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Fetch data from backend
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [doctorsRes, patientsRes, feedbackRes] = await Promise.all([
-          fetch(`${backendUrl}/doctors`),
-          fetch(`${backendUrl}/patients`),
-          fetch(`${backendUrl}/feedback`)
-        ]);
-
-        if (!doctorsRes.ok) throw new Error("Failed to fetch doctors");
-        if (!patientsRes.ok) throw new Error("Failed to fetch patients");
-        if (!feedbackRes.ok) throw new Error("Failed to fetch feedback");
-
-        const doctorsData = await doctorsRes.json();
-        const patientsData = await patientsRes.json();
-        const feedbackData = await feedbackRes.json();
-
-        // Transform data to match frontend expectations
-        setDoctors(doctorsData.map((doctor: any) => ({
-          id: doctor.id.toString(),
-          name: doctor.name,
-          specialty: doctor.specialty,
-          email: doctor.email,
-          status: doctor.is_active ? "Active" : "Inactive",
-          patientCount: 0, // You'll need to implement this
-          averageRating: 0 // You'll need to implement this
-        })));
-
-        setPatients(patientsData.map((patient: any) => ({
-          id: patient.id.toString(),
-          name: `${patient.first_name} ${patient.last_name}`,
-          email: patient.email,
-          phone: patient.phone_number,
-          registrationDate: patient.created_at,
-          status: patient.is_active ? "Active" : "Inactive"
-        })));
-
-        setFeedback(feedbackData.map((feedback: any) => ({
-          id: feedback.id.toString(),
-          patient: `Patient ${feedback.patient_id}`,
-          doctor: "Unknown", // You'll need to implement this
-          rating: feedback.rating || 0,
-          comment: feedback.comment || "",
-          date: feedback.created_at,
-          sentiment: feedback.rating >= 4 ? "positive" : "neutral"
-        })));
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
+  const fetchData = async (endpoint: string, setter: React.Dispatch<React.SetStateAction<any[]>>, errorMsg: string) => {
+    try {
+      console.log(`Fetching ${backendUrl}${endpoint}`);
+      const response = await fetch(`${backendUrl}${endpoint}`, {
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        }
+      });
+      console.log(`Response status for ${endpoint}: ${response.status}`);
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = {};
+        }
+        console.error(`Error response for ${endpoint}:`, errorData);
+        const message = errorData.detail || `Failed to fetch ${errorMsg} (Status: ${response.status})`;
+        throw new Error(message);
+      }
+      const data = await response.json();
+      console.log(`Data fetched for ${endpoint}:`, data);
+      
+      // Store the raw data for persistence
+      localStorage.setItem(`admin_${endpoint.replace(/\//g, '_')}`, JSON.stringify(data));
+      
+      setter(data.map((item: any) => {
+        if (endpoint.includes("doctor")) {
+          return {
+            id: item.id.toString(),
+            name: item.name || "Unknown",
+            specialty: item.specialty || "N/A",
+            email: item.email || "N/A",
+            status: item.is_active ? "Active" : "Inactive",
+            patientCount: item.patientCount || 0,
+            averageRating: item.averageRating || 0
+          };
+        } else if (endpoint.includes("patients")) {
+          return {
+            id: item.id.toString(),
+            name: `${item.first_name || "Unknown"} ${item.last_name || ""}`,
+            email: item.email || "N/A",
+            phone: item.phone_number || "N/A",
+            registrationDate: item.created_at ? new Date(item.created_at).toISOString() : new Date().toISOString(),
+            status: item.is_active ? "Active" : "Inactive"
+          };
+        } else if (endpoint.includes("feedback")) {
+          return {
+            id: item.id.toString(),
+            patient: item.patient ? `${item.patient.first_name || ""} ${item.patient.last_name || ""}` : `Patient ${item.patient_id || "Unknown"}`,
+            doctor: item.doctor ? item.doctor.name : "Unknown Doctor",
+            rating: item.rating || 0,
+            comment: item.comment || "No comment",
+            date: item.created_at ? new Date(item.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            sentiment: item.rating >= 4 ? "positive" : "neutral"
+          };
+        }
+        return item;
+      }));
+    } catch (error: any) {
+      console.error(`Error fetching ${errorMsg}:`, error);
+      
+      // Try to load from localStorage if API fails
+      const savedData = localStorage.getItem(`admin_${endpoint.replace(/\//g, '_')}`);
+      if (savedData) {
+        console.log(`Using cached data for ${endpoint}`);
+        const parsedData = JSON.parse(savedData);
+        
+        setter(parsedData.map((item: any) => {
+          if (endpoint.includes("doctor")) {
+            return {
+              id: item.id.toString(),
+              name: item.name || "Unknown",
+              specialty: item.specialty || "N/A",
+              email: item.email || "N/A",
+              status: item.is_active ? "Active" : "Inactive",
+              patientCount: item.patientCount || 0,
+              averageRating: item.averageRating || 0
+            };
+          } else if (endpoint.includes("patients")) {
+            return {
+              id: item.id.toString(),
+              name: `${item.first_name || "Unknown"} ${item.last_name || ""}`,
+              email: item.email || "N/A",
+              phone: item.phone_number || "N/A",
+              registrationDate: item.created_at ? new Date(item.created_at).toISOString() : new Date().toISOString(),
+              status: item.is_active ? "Active" : "Inactive"
+            };
+          } else if (endpoint.includes("feedback")) {
+            return {
+              id: item.id.toString(),
+              patient: item.patient ? `${item.patient.first_name || ""} ${item.patient.last_name || ""}` : `Patient ${item.patient_id || "Unknown"}`,
+              doctor: item.doctor ? item.doctor.name : "Unknown Doctor",
+              rating: item.rating || 0,
+              comment: item.comment || "No comment",
+              date: item.created_at ? new Date(item.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+              sentiment: item.rating >= 4 ? "positive" : "neutral"
+            };
+          }
+          return item;
+        }));
+      } else {
         toast({
-          title: "Error",
-          description: "Failed to load data from server",
+          title: `Failed to Load ${errorMsg}`,
+          description: error.message || `Could not load ${errorMsg.toLowerCase()}. Please check if the backend is running and the endpoint is correct.`,
           variant: "destructive"
         });
       }
-    };
+    }
+  };
 
-    fetchData();
+  useEffect(() => {
+    Promise.all([
+      fetchData("/doctor", setDoctors, "doctors"),
+      fetchData("/patients", setPatients, "patients"),
+      fetchData("/feedback", setFeedback, "feedback")
+    ]).catch((error) => {
+      console.error("Failed to fetch data:", error);
+    });
   }, [backendUrl, toast]);
 
   const handleExportData = (type: string) => {
@@ -184,36 +244,151 @@ const AdminDashboard = () => {
   };
 
   const handleCreateDoctor = () => {
+    setIsEditing(false);
+    setEditingDoctorId(null);
+    setNewDoctor({
+      name: "",
+      specialty: "",
+      email: "",
+      password: "",
+      status: "Active"
+    });
     setShowAddDoctorForm(true);
   };
 
-  const handleSubmitNewDoctor = async () => {
+  const handleEditDoctor = async (doctorId: string) => {
     try {
-      const response = await fetch(`${backendUrl}/doctors`, {
-        method: "POST",
+      const response = await fetch(`${backendUrl}/doctor/${doctorId}`, {
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json"
+        }
+      });
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = {};
+        }
+        throw new Error(errorData.detail || `Failed to fetch doctor data (Status: ${response.status})`);
+      }
+      const doctorData = await response.json();
+      setNewDoctor({
+        name: doctorData.name || "",
+        specialty: doctorData.specialty || "",
+        email: doctorData.email || "",
+        password: "",
+        status: doctorData.is_active ? "Active" : "Inactive"
+      });
+      setIsEditing(true);
+      setEditingDoctorId(doctorId);
+      setShowAddDoctorForm(true);
+    } catch (error: any) {
+      console.error(`Error fetching doctor ${doctorId}:`, error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load doctor data. Please check if the backend is running.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSubmitDoctor = async () => {
+    // Validate required fields
+    if (!newDoctor.name || !newDoctor.specialty || !newDoctor.email || (!isEditing && !newDoctor.password)) {
+      toast({
+        title: "Error",
+        description: "All fields are required.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newDoctor.email)) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid email address.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate password length for new doctors
+    if (!isEditing && newDoctor.password.length < 8) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 8 characters long.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const url = isEditing 
+        ? `${backendUrl}/doctor/${editingDoctorId}`
+        : `${backendUrl}/doctor`;
+      const method = isEditing ? "PUT" : "POST";
+      
+      interface DoctorRequestBody {
+        name: string;
+        specialty: string;
+        email: string;
+        is_active: boolean;
+        password?: string;
+      }
+
+      const requestBody: DoctorRequestBody = {
+        name: newDoctor.name,
+        specialty: newDoctor.specialty,
+        email: newDoctor.email,
+        is_active: newDoctor.status === "Active"
+      };
+
+      if (!isEditing || newDoctor.password) {
+        requestBody.password = newDoctor.password;
+      }
+
+      console.log(`Submitting doctor to ${url}:`, requestBody);
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
         },
-        body: JSON.stringify({
-          name: newDoctor.name,
-          specialty: newDoctor.specialty,
-          email: newDoctor.email,
-          password: newDoctor.password,
-        }),
+        body: JSON.stringify(requestBody)
       });
 
-      const data = await response.json();
-      
+      console.log(`Response status for ${url}: ${response.status}`);
       if (!response.ok) {
-        throw new Error(data.detail || "Failed to create doctor");
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = {};
+        }
+        console.error(`Error response for ${url}:`, errorData);
+        let errorMessage = errorData.detail || `Failed to ${isEditing ? "update" : "create"} doctor (Status: ${response.status})`;
+        if (response.status === 409) {
+          errorMessage = "Email already exists in the system";
+        } else if (response.status === 404) {
+          errorMessage = "Doctor endpoint not found. Please ensure the backend is configured correctly.";
+        }
+        throw new Error(errorMessage);
       }
 
       toast({
-        title: "Doctor Account Created",
-        description: "New doctor account has been saved to the database.",
+        title: isEditing ? "Doctor Updated" : "Doctor Created",
+        description: isEditing 
+          ? "Doctor details have been successfully updated." 
+          : "New doctor has been added to the system."
       });
 
       setShowAddDoctorForm(false);
+      setIsEditing(false);
+      setEditingDoctorId(null);
       setNewDoctor({
         name: "",
         specialty: "",
@@ -222,23 +397,13 @@ const AdminDashboard = () => {
         status: "Active"
       });
 
-      // Refresh doctors list
-      const updated = await fetch(`${backendUrl}/doctors`);
-      const updatedData = await updated.json();
-      setDoctors(updatedData.map((doctor: any) => ({
-        id: doctor.id.toString(),
-        name: doctor.name,
-        specialty: doctor.specialty,
-        email: doctor.email,
-        status: doctor.is_active ? "Active" : "Inactive",
-        patientCount: 0,
-        averageRating: 0
-      })));
+      await fetchData("/doctor", setDoctors, "doctors");
 
     } catch (error: any) {
+      console.error("Doctor submission error:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "An unexpected error occurred while submitting doctor data.",
         variant: "destructive"
       });
     }
@@ -246,43 +411,61 @@ const AdminDashboard = () => {
 
   const handleDeactivateUser = async (userId: string, userType: string) => {
     try {
-      const response = await fetch(`${backendUrl}/doctors/${userId}/status`, {
+      const endpoint = userType === "doctor" ? `/doctor/${userId}/status` : `/patients/${userId}/status`;
+      const url = `${backendUrl}${endpoint}`;
+      console.log(`Updating status at ${url}`);
+      const response = await fetch(url, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json"
         }
       });
-
+      console.log(`Response status for ${url}: ${response.status}`);
       if (!response.ok) {
-        throw new Error("Failed to toggle doctor status");
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = {};
+        }
+        console.error(`Error response for ${url}:`, errorData);
+        let errorMessage = errorData.detail || `Failed to update ${userType} status (Status: ${response.status})`;
+        if (response.status === 404) {
+          errorMessage = `${userType.charAt(0).toUpperCase() + userType.slice(1)} status endpoint not found. Please ensure the backend is configured correctly.`;
+        }
+        throw new Error(errorMessage);
       }
-
       toast({
-        title: "Doctor Status Updated",
-        description: "Doctor status has been updated.",
+        title: `${userType.charAt(0).toUpperCase() + userType.slice(1)} Status Updated`,
+        description: `${userType.charAt(0).toUpperCase() + userType.slice(1)} status has been updated.`,
       });
-
-      // Refresh doctors list
-      const updated = await fetch(`${backendUrl}/doctors`);
-      const data = await updated.json();
-      setDoctors(data.map((doctor: any) => ({
-        id: doctor.id.toString(),
-        name: doctor.name,
-        specialty: doctor.specialty,
-        email: doctor.email,
-        status: doctor.is_active ? "Active" : "Inactive",
-        patientCount: 0,
-        averageRating: 0
-      })));
-
+      if (userType === "doctor") {
+        await fetchData("/doctor", setDoctors, "doctors");
+      } else {
+        await fetchData("/patients", setPatients, "patients");
+      }
     } catch (error: any) {
+      console.error(`Error updating ${userType} status:`, error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || `Failed to update ${userType} status. Please check if the backend is running.`,
         variant: "destructive"
       });
     }
   };
+
+  const filteredDoctors = doctors.filter(doctor =>
+    doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doctor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doctor.specialty.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredPatients = patients.filter(patient =>
+    patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    patient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    patient.phone.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const navItems = [
     { id: "overview", label: "Overview", icon: <BarChart3 className="h-4 w-4" /> },
@@ -296,7 +479,6 @@ const AdminDashboard = () => {
   return (
     <DashboardLayout userRole="admin" userName="Admin User">
       <div className="flex relative min-h-screen">
-        {/* Mobile Toggle Button */}
         <Button
           variant="ghost"
           className="md:hidden fixed top-20 left-4 z-50 p-2 rounded-full shadow-md bg-white dark:bg-gray-800"
@@ -304,17 +486,11 @@ const AdminDashboard = () => {
         >
           <Menu className="h-5 w-5" />
         </Button>
-
-        {/* Sidebar Navigation */}
         <div className={`
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-          fixed md:sticky
-          top-0
-          w-64 h-full
+          fixed md:sticky top-0 w-64 h-full
           transition-transform duration-300 ease-in-out
-          bg-background border-r
-          z-40
-          md:flex
+          bg-background border-r z-40 md:flex
         `}>
           <div className="p-4 h-full flex flex-col">
             <div className="flex items-center mb-6">
@@ -339,20 +515,15 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
-
-        {/* Overlay for mobile when sidebar is open */}
         {sidebarOpen && isMobile && (
           <div 
             className="fixed inset-0 bg-black/50 z-30 md:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}
-
-        {/* Main Content Area */}
         <div className="flex-1 transition-all duration-300">
           <div className="p-4 md:p-8 pt-20 md:pt-8">
             <div className="space-y-6">
-              {/* Welcome Section */}
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
@@ -362,8 +533,6 @@ const AdminDashboard = () => {
                   System Administrator
                 </Badge>
               </div>
-
-              {/* Key Metrics  */}
               <div className="grid md:grid-cols-4 gap-6">
                 <Card>
                   <CardContent className="p-6">
@@ -376,7 +545,6 @@ const AdminDashboard = () => {
                     </div>
                   </CardContent>
                 </Card>
-                
                 <Card>
                   <CardContent className="p-6">
                     <div className="flex items-center space-x-3">
@@ -388,7 +556,6 @@ const AdminDashboard = () => {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card>
                   <CardContent className="p-6">
                     <div className="flex items-center space-x-3">
@@ -400,7 +567,6 @@ const AdminDashboard = () => {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card>
                   <CardContent className="p-6">
                     <div className="flex items-center space-x-3">
@@ -413,9 +579,6 @@ const AdminDashboard = () => {
                   </CardContent>
                 </Card>
               </div>
-
-              {/* Tab Content */}
-              {/* Overview Tab */}
               {activeTab === "overview" && (
                 <div className="space-y-6">
                   <div className="grid lg:grid-cols-2 gap-6">
@@ -425,32 +588,35 @@ const AdminDashboard = () => {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-4">
-                          {feedbackAnalytics.recentFeedback.map(feedback => (
-                            <div key={feedback.id} className="border rounded-lg p-3 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium">{feedback.patient}</span>
-                                <div className="flex">
-                                  {[1, 2, 3, 4, 5].map(star => (
-                                    <Star 
-                                      key={star}
-                                      className={`h-4 w-4 ${star <= feedback.rating ? 'fill-warning text-warning' : 'text-muted-foreground'}`} 
-                                    />
-                                  ))}
+                          {feedbackAnalytics.recentFeedback.length > 0 ? (
+                            feedbackAnalytics.recentFeedback.map(feedback => (
+                              <div key={feedback.id} className="border rounded-lg p-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium">{feedback.patient}</span>
+                                  <div className="flex">
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                      <Star 
+                                        key={star}
+                                        className={`h-4 w-4 ${star <= feedback.rating ? 'fill-warning text-warning' : 'text-muted-foreground'}`} 
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                                <p className="text-sm text-muted-foreground">{feedback.comment}</p>
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span>{feedback.doctor}</span>
+                                  <Badge variant={feedback.sentiment === "positive" ? "default" : "secondary"}>
+                                    {feedback.sentiment}
+                                  </Badge>
                                 </div>
                               </div>
-                              <p className="text-sm text-muted-foreground">{feedback.comment}</p>
-                              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span>{feedback.doctor}</span>
-                                <Badge variant={feedback.sentiment === "positive" ? "default" : "secondary"}>
-                                  {feedback.sentiment}
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
+                            ))
+                          ) : (
+                            <p className="text-muted-foreground">No feedback available.</p>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
-
                     <Card>
                       <CardHeader>
                         <CardTitle>System Health</CardTitle>
@@ -477,19 +643,22 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               )}
-
-              {/* Doctors Management Tab */}
               {activeTab === "doctors" && (
                 <div className="space-y-6">
                   {showAddDoctorForm && (
                     <Card>
                       <CardHeader>
                         <div className="flex items-center justify-between">
-                          <CardTitle>Add New Doctor</CardTitle>
+                          <CardTitle>{isEditing ? "Edit Doctor" : "Add New Doctor"}</CardTitle>
                           <Button 
                             variant="ghost" 
                             size="icon"
-                            onClick={() => setShowAddDoctorForm(false)}
+                            onClick={() => {
+                              setShowAddDoctorForm(false);
+                              setIsEditing(false);
+                              setEditingDoctorId(null);
+                              setNewDoctor({ name: "", specialty: "", email: "", password: "", status: "Active" });
+                            }}
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -536,10 +705,10 @@ const AdminDashboard = () => {
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-sm font-medium">Password</label>
+                              <label className="text-sm font-medium">{isEditing ? "New Password (optional)" : "Password"}</label>
                               <div className="relative">
                                 <Input 
-                                  placeholder="Create a password" 
+                                  placeholder={isEditing ? "Enter new password to change" : "Create a password"} 
                                   type={showPassword ? "text" : "password"}
                                   value={newDoctor.password}
                                   onChange={(e) => setNewDoctor({...newDoctor, password: e.target.value})}
@@ -560,25 +729,29 @@ const AdminDashboard = () => {
                             </div>
                           </div>
                         </div>
-
                         <div className="flex justify-end mt-6 space-x-2">
                           <Button 
                             variant="outline" 
-                            onClick={() => setShowAddDoctorForm(false)}
+                            onClick={() => {
+                              setShowAddDoctorForm(false);
+                              setIsEditing(false);
+                              setEditingDoctorId(null);
+                              setNewDoctor({ name: "", specialty: "", email: "", password: "", status: "Active" });
+                            }}
                           >
                             Cancel
                           </Button>
                           <Button 
                             variant="healthcare"
-                            onClick={handleSubmitNewDoctor}
+                            onClick={handleSubmitDoctor}
+                            disabled={!newDoctor.name || !newDoctor.specialty || !newDoctor.email || (!isEditing && !newDoctor.password)}
                           >
-                            Add Doctor
+                            {isEditing ? "Update Doctor" : "Add Doctor"}
                           </Button>
                         </div>
                       </CardContent>
                     </Card>
                   )}
-
                   <Card>
                     <CardHeader>
                       <div className="flex items-center justify-between">
@@ -605,8 +778,7 @@ const AdminDashboard = () => {
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="max-w-sm"
                           />
-                        </div>
-                        
+                        </div>                       
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -620,37 +792,51 @@ const AdminDashboard = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {doctors.map(doctor => (
-                              <TableRow key={doctor.id}>
-                                <TableCell className="font-medium">{doctor.name}</TableCell>
-                                <TableCell>{doctor.specialty}</TableCell>
-                                <TableCell>{doctor.email}</TableCell>
-                                <TableCell>{doctor.patientCount || 0}</TableCell>
-                                <TableCell>
-                                  <div className="flex items-center space-x-1">
-                                    <Star className="h-4 w-4 fill-warning text-warning" />
-                                    <span>{doctor.averageRating?.toFixed(1) || 'N/A'}</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant={doctor.status === "Active" ? "default" : "secondary"}>
-                                    {doctor.status}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex space-x-2">
-                                    <Button variant="outline" size="sm">Edit</Button>
-                                    <Button 
-                                      variant="destructive" 
-                                      size="sm"
-                                      onClick={() => handleDeactivateUser(doctor.id, "doctor")}
-                                    >
-                                      Deactivate
-                                    </Button>
-                                  </div>
+                            {filteredDoctors.length > 0 ? (
+                              filteredDoctors.map(doctor => (
+                                <TableRow key={doctor.id}>
+                                  <TableCell className="font-medium">{doctor.name}</TableCell>
+                                  <TableCell>{doctor.specialty}</TableCell>
+                                  <TableCell>{doctor.email}</TableCell>
+                                  <TableCell>{doctor.patientCount || 0}</TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center space-x-1">
+                                      <Star className="h-4 w-4 fill-warning text-warning" />
+                                      <span>{doctor.averageRating?.toFixed(1) || 'N/A'}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={doctor.status === "Active" ? "default" : "secondary"}>
+                                      {doctor.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex space-x-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleEditDoctor(doctor.id)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm"
+                                        onClick={() => handleDeactivateUser(doctor.id, "doctor")}
+                                      >
+                                        {doctor.status === "Active" ? "Deactivate" : "Activate"}
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            ) : (
+                              <TableRow>
+                                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                                  No doctors found.
                                 </TableCell>
                               </TableRow>
-                            ))}
+                            )}
                           </TableBody>
                         </Table>
                       </div>
@@ -658,17 +844,17 @@ const AdminDashboard = () => {
                   </Card>
                 </div>
               )}
-
-              {/* Patients Management Tab */}
               {activeTab === "patients" && (
                 <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle>Patient Management</CardTitle>
-                      <Button onClick={() => handleExportData("Patients")} variant="outline">
-                        <Download className="h-4 w-4 mr-2" />
-                        Export Patient Data
-                      </Button>
+                      <div className="flex items-center space-x-2">
+                        <Button onClick={() => handleExportData("Patients")} variant="outline">
+                          <Download className="h-4 w-4 mr-2" />
+                          Export Patient Data
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -691,8 +877,7 @@ const AdminDashboard = () => {
                             <SelectItem value="inactive">Inactive</SelectItem>
                           </SelectContent>
                         </Select>
-                      </div>
-                      
+                      </div>                      
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -705,40 +890,46 @@ const AdminDashboard = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {patients.map(patient => (
-                            <TableRow key={patient.id}>
-                              <TableCell className="font-medium">{patient.name}</TableCell>
-                              <TableCell>{patient.email}</TableCell>
-                              <TableCell>{patient.phone}</TableCell>
-                              <TableCell>{new Date(patient.registrationDate).toLocaleDateString()}</TableCell>
-                              <TableCell>
-                                <Badge variant={patient.status === "Active" ? "default" : "secondary"}>
-                                  {patient.status}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex space-x-2">
-                                  <Button variant="outline" size="sm">View</Button>
-                                  <Button variant="outline" size="sm">Reset Access</Button>
-                                  <Button 
-                                    variant="destructive" 
-                                    size="sm"
-                                    onClick={() => handleDeactivateUser(patient.id, "patient")}
-                                  >
-                                    Deactivate
-                                  </Button>
-                                </div>
+                          {filteredPatients.length > 0 ? (
+                            filteredPatients.map(patient => (
+                              <TableRow key={patient.id}>
+                                <TableCell className="font-medium">{patient.name}</TableCell>
+                                <TableCell>{patient.email}</TableCell>
+                                <TableCell>{patient.phone}</TableCell>
+                                <TableCell>{new Date(patient.registrationDate).toLocaleDateString()}</TableCell>
+                                <TableCell>
+                                  <Badge variant={patient.status === "Active" ? "default" : "secondary"}>
+                                    {patient.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex space-x-2">
+                                    <Button variant="outline" size="sm">View</Button>
+                                    <Button variant="outline" size="sm">Reset Access</Button>
+                                    <Button 
+                                      variant="destructive" 
+                                      size="sm"
+                                      onClick={() => handleDeactivateUser(patient.id, "patient")}
+                                    >
+                                      {patient.status === "Active" ? "Deactivate" : "Activate"}
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground">
+                                No patients found.
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )}
                         </TableBody>
                       </Table>
                     </div>
                   </CardContent>
                 </Card>
               )}
-
-              {/* Analytics Tab */}
               {activeTab === "analytics" && (
                 <div className="grid lg:grid-cols-2 gap-6">
                   <Card>
@@ -758,8 +949,7 @@ const AdminDashboard = () => {
                           <p className="text-2xl font-bold text-secondary">{feedbackAnalytics.responseTime}</p>
                           <p className="text-sm text-muted-foreground">Avg Response Time</p>
                         </div>
-                      </div>
-                      
+                      </div>                      
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span>Satisfaction Rate</span>
@@ -772,14 +962,12 @@ const AdminDashboard = () => {
                           ></div>
                         </div>
                       </div>
-
                       <Button onClick={() => handleExportData("Analytics")} variant="outline" className="w-full">
                         <Download className="h-4 w-4 mr-2" />
                         Export Analytics Report
                       </Button>
                     </CardContent>
                   </Card>
-
                   <Card>
                     <CardHeader>
                       <CardTitle>Department Performance</CardTitle>
@@ -787,8 +975,7 @@ const AdminDashboard = () => {
                     <CardContent className="space-y-4">
                       {specialtyOptions.map(specialty => {
                         const specialtyDoctors = doctors.filter(d => d.specialty === specialty.value);
-                        const avgRating = specialtyDoctors.reduce((acc, curr) => acc + (curr.averageRating || 0), 0) / (specialtyDoctors.length || 1);
-                        
+                        const avgRating = specialtyDoctors.length > 0 ? specialtyDoctors.reduce((acc, curr) => acc + (curr.averageRating || 0), 0) / specialtyDoctors.length : 0;                        
                         return (
                           <div key={specialty.value} className="flex items-center justify-between">
                             <span>{specialty.label}</span>
@@ -803,8 +990,6 @@ const AdminDashboard = () => {
                   </Card>
                 </div>
               )}
-
-              {/* Appointments Tab */}
               {activeTab === "appointments" && (
                 <Card>
                   <CardHeader>
@@ -814,7 +999,7 @@ const AdminDashboard = () => {
                         <span>All Appointments</span>
                       </CardTitle>
                       <Button onClick={() => handleExportData("Appointments")} variant="outline">
-                        <Download className="h-4 w-4 mr-2" />
+                        <Download className="h-4 w-4 mr-2"/>
                         Export Schedule
                       </Button>
                     </div>
@@ -834,8 +1019,6 @@ const AdminDashboard = () => {
                   </CardContent>
                 </Card>
               )}
-
-              {/* System Settings Tab */}
               {activeTab === "settings" && (
                 <Card>
                   <CardHeader>
@@ -845,7 +1028,6 @@ const AdminDashboard = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Maintenance Mode and Notifications */}
                     <div className="grid md:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Maintenance Mode</label>
@@ -859,7 +1041,6 @@ const AdminDashboard = () => {
                           </SelectContent>
                         </Select>
                       </div>
-
                       <div className="space-y-2">
                         <label className="text-sm font-medium">System Notifications</label>
                         <Select>
@@ -873,8 +1054,6 @@ const AdminDashboard = () => {
                         </Select>
                       </div>
                     </div>
-
-                    {/* Limits Settings */}
                     <div className="grid md:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Max Appointments Per Day</label>
@@ -885,8 +1064,6 @@ const AdminDashboard = () => {
                         <Input type="number" defaultValue={24} min={1} />
                       </div>
                     </div>
-
-                    {/* Save Button */}
                     <Button
                       className="mt-4"
                       onClick={() =>
