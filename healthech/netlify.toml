@@ -1,5 +1,4 @@
 [build]
-  base = "'douala-healthech(trck 1,2,3)'"
   command = "npm run install && npm run build"
   publish = "dist"
   
