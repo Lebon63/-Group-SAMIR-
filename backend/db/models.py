@@ -60,3 +60,33 @@ class MedicationReminder(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     patient = relationship("Patient")
+
+# Add new models for appointments and medications
+class Appointment(Base):
+    __tablename__ = "appointments"
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("doctors.id"), nullable=False)
+    date = Column(String, nullable=False)  # Store as string in YYYY-MM-DD format
+    time = Column(String, nullable=False)  # Store as string in HH:MM format
+    category = Column(String)  # Appointment category/type
+    description = Column(Text)  # Description or notes
+    status = Column(String, default="scheduled")  # scheduled, completed, cancelled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    patient = relationship("Patient")
+    doctor = relationship("Doctor")
+
+class Medication(Base):
+    __tablename__ = "medications"
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("doctors.id"), nullable=False)
+    medication = Column(String, nullable=False)  # Name of medication
+    dosage = Column(String, nullable=False)  # Dosage amount
+    frequency = Column(String, nullable=False)  # How often to take
+    instructions = Column(Text)  # Additional instructions
+    start_date = Column(String)  # YYYY-MM-DD format
+    end_date = Column(String)  # YYYY-MM-DD format
+    created_at = Column(DateTime, default=datetime.utcnow)
+    patient = relationship("Patient")
+    doctor = relationship("Doctor")

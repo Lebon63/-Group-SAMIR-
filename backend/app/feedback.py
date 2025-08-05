@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from db.database import SessionLocal
 from db.models import Feedback, FeedbackCategory, Doctor, Patient
 from app.schemas import FeedbackResponse, FeedbackBase, FeedbackCategoryResponse, DoctorResponse, PatientResponse
+from app.auth import get_current_user
 from pydantic import BaseModel
 import traceback
 from datetime import datetime
@@ -49,12 +50,15 @@ def list_categories(db: Session = Depends(get_db)):
 def list_feedback(doctor_id: int = None, patient_id: int = None, db: Session = Depends(get_db)):
     """Return a list of feedback, optionally filtered by doctor_id or patient_id"""
     query = db.query(Feedback)
+    
+    # Apply filters
     if doctor_id:
         query = query.filter(Feedback.doctor_id == doctor_id)
     if patient_id:
         query = query.filter(Feedback.patient_id == patient_id)
+    
     feedback = query.all()
-    if not feedback and (doctor_id or patient_id):
+    if not feedback:
         # Don't raise 404 error, just return empty list
         return []
     return [

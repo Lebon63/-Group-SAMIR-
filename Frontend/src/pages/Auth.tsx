@@ -17,6 +17,7 @@ interface LoginResponse {
   user_role: string;
   name?: string;
   first_name?: string;
+  specialty?: string; // Added specialty for doctors
 }
 
 const Auth = () => {
@@ -97,6 +98,37 @@ const Auth = () => {
         }
 
         const data: LoginResponse = await response.json();
+        
+        // Check if user is deactivated
+        if (data.user_role === "doctor" || data.user_role === "patient") {
+          try {
+            const userEndpoint = data.user_role === "doctor" 
+              ? `/doctor/${data.user_id}`
+              : `/patients/${data.user_id}`;
+              
+            const userResponse = await fetch(`${backendUrl}${userEndpoint}`, {
+              headers: {
+                "Authorization": `Bearer ${data.access_token}`,
+                "Accept": "application/json"
+              }
+            });
+            
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              const isActive = data.user_role === "doctor" ? userData.is_active : userData.is_active;
+              
+              if (!isActive) {
+                throw new Error("Your account has been deactivated. Please contact support for assistance.");
+              }
+            }
+          } catch (error: any) {
+            if (error.message.includes("deactivated")) {
+              throw error;
+            }
+            // If there's another error checking status, we'll continue with login
+            console.error("Error checking user status:", error);
+          }
+        }
 
         // Store authentication data
         localStorage.setItem('authToken', data.access_token);
@@ -104,12 +136,41 @@ const Auth = () => {
         localStorage.setItem('userId', data.user_id.toString());
         localStorage.setItem('userName', data.first_name || data.name || '');
         localStorage.setItem('user_name', data.first_name || data.name || '');
-        // Store email explicitly for doctors
-        if (data.user_role === "doctor") {
-          localStorage.setItem('doctorEmail', formData.email);
-        }
 
         if (data.user_role === "doctor") {
+          // Store email explicitly for doctors
+          localStorage.setItem('doctorEmail', formData.email);
+          
+          // Fetch doctor profile data immediately after login
+          try {
+            const profileRes = await fetch(`${backendUrl}/doctor/profile?email=${encodeURIComponent(formData.email)}`, {
+              headers: {
+                "Authorization": `Bearer ${data.access_token}`,
+                "Accept": "application/json"
+              }
+            });
+            
+            if (profileRes.ok) {
+              const profileData = await profileRes.json();
+              // Store doctor-specific information
+              localStorage.setItem('doctorId', profileData.id.toString());
+              localStorage.setItem('doctorName', profileData.name);
+              localStorage.setItem('doctorSpecialty', profileData.specialty);
+              
+              // Store user object for consistency
+              const user = {
+                id: profileData.id,
+                name: profileData.name,
+                specialty: profileData.specialty,
+                email: formData.email,
+                role: 'doctor'
+              };
+              localStorage.setItem('user', JSON.stringify(user));
+            }
+          } catch (profileError) {
+            console.error("Error fetching doctor profile:", profileError);
+          }
+          
           toast({
             title: "Welcome Doctor!",
             description: "You have been signed in.",

@@ -1,13 +1,14 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from db.models import Doctor, Patient
 from db.database import SessionLocal
-from jose import jwt
+from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from db.models import Doctor, Patient, Admin
+from fastapi.security import OAuth2PasswordBearer
 
 # ---------------------- Settings ----------------------
 SECRET_KEY = "your_secret_key"
@@ -16,6 +17,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 # ---------------------- Database Dependency ----------------------
 def get_db():
@@ -49,6 +51,38 @@ class LoginRequest(BaseModel):
     
 # ---------------------- Routes ----------------------
 
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        user_role: str = payload.get("role")
+        
+        if user_id is None or user_role is None:
+            raise credentials_exception
+            
+        # Find the user based on their role
+        if user_role == "admin":
+            user = db.query(Admin).filter(Admin.id == user_id).first()
+        elif user_role == "doctor":
+            user = db.query(Doctor).filter(Doctor.id == user_id).first()
+        elif user_role == "patient":
+            user = db.query(Patient).filter(Patient.id == user_id).first()
+        else:
+            raise credentials_exception
+            
+        if user is None:
+            raise credentials_exception
+            
+        return {"id": user_id, "role": user_role, "user": user}
+        
+    except JWTError:
+        raise credentials_exception
 
 @router.post("/token")
 def login(data: LoginRequest, db: Session = Depends(get_db)):

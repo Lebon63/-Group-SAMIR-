@@ -190,7 +190,7 @@ const PatientDashboard = () => {
             doctor: fb.doctor?.name || "Unknown",
             rating: fb.rating || 0,
             comment: fb.comment || "No comment",
-            status: fb.rating >= 4 ? "Reviewed" : "Pending"
+            status: fb.rating <= 2 ? "Negative" : (fb.rating === 3 ? "Neutral" : "Positive")
           })));
         } catch (error) {
           console.warn("API request failed, checking localStorage for cached data");
@@ -207,7 +207,7 @@ const PatientDashboard = () => {
               doctor: fb.doctor?.name || "Unknown",
               rating: fb.rating || 0,
               comment: fb.comment || "No comment",
-              status: fb.rating >= 4 ? "Reviewed" : "Pending"
+              status: fb.rating <= 2 ? "Negative" : (fb.rating === 3 ? "Neutral" : "Positive")
             })));
           } else {
             // If we have no cached data for this specific patient, start with empty array
@@ -234,30 +234,8 @@ const PatientDashboard = () => {
     { value: "Surgery", label: "Surgery" }
   ];
 
-  // Initialize with default medications
-  const [medications, setMedications] = useState([
-    {
-      id: 1,
-      medication: "Paracetamol",
-      dosage: "500mg",
-      frequency: "Twice a day",
-      instructions: "Take after meals with a glass of water"
-    },
-    {
-      id: 2,
-      medication: "Amoxicillin",
-      dosage: "250mg",
-      frequency: "Three times a day",
-      instructions: "Take every 8 hours; complete full course"
-    },
-    {
-      id: 3,
-      medication: "Ibuprofen",
-      dosage: "400mg",
-      frequency: "Once every 6 hours as needed",
-      instructions: "Take with food to avoid stomach upset"
-    }
-  ]);
+  // Initialize with empty medications (will be populated from doctor-prescribed medications)
+  const [medications, setMedications] = useState([]);
 
   // Fetch medications from the API
   useEffect(() => {
@@ -284,20 +262,32 @@ const PatientDashboard = () => {
             localStorage.setItem(`medications_${patientId}`, JSON.stringify(data));
           }
         } else {
-          // Try to get cached medications if API fails
-          const cachedMedications = localStorage.getItem(`medications_${patientId}`);
-          if (cachedMedications) {
-            setMedications(JSON.parse(cachedMedications));
-          }
-          // If no cached data, keep the default medications
+          throw new Error("API failed");
         }
       } catch (error) {
         console.error("Error fetching medications:", error);
         // Try to load from localStorage if API throws error
         const cachedMedications = localStorage.getItem(`medications_${patientId}`);
-        if (cachedMedications) {
-          setMedications(JSON.parse(cachedMedications));
-        }
+        
+        // Check if there are any global medications (added by doctors)
+        const globalMedications = JSON.parse(localStorage.getItem('medications') || '[]');
+        const patientMedications = globalMedications.filter(med => med.patient_id == patientId);
+        
+        // Deduplicate medications by ID
+        const existingMeds = cachedMedications ? JSON.parse(cachedMedications) : [];
+        const allMeds = [...existingMeds, ...patientMedications];
+        
+        // Remove duplicates by creating a map with ID as key
+        const uniqueMedsMap = new Map();
+        allMeds.forEach(med => {
+          uniqueMedsMap.set(med.id, med);
+        });
+        
+        const uniqueMeds = Array.from(uniqueMedsMap.values());
+        setMedications(uniqueMeds);
+        
+        // Update localStorage with deduplicated list
+        localStorage.setItem(`medications_${patientId}`, JSON.stringify(uniqueMeds));
       } finally {
         setLoading(false);
       }
@@ -306,35 +296,65 @@ const PatientDashboard = () => {
     fetchMedications();
   }, [backendUrl]);
 
-  const upcomingAppointments = [
-    {
-      id: 1,
-      doctorName: "Jean Fofie",
-      category: "Pediatrics",
-      date: "2024-01-16",
-      time: "09:00",
-      type: "Follow-up",
-      status: "Attended"
-    },
-    {
-      id: 2,
-      doctorName: "Sarah Ateba",
-      category: "Cardiology",
-      date: "2024-01-16",
-      time: "10:30",
-      type: "Consultation",
-      status: "Pending"
-    },
-    {
-      id: 3,
-      doctorName: "Michel Bessala",
-      category: "General Medicine",
-      date: "2024-01-17",
-      time: "14:00",
-      type: "Check-up",
-      status: "Attended"
-    }
-  ];
+  // Initialize with empty appointments (will be populated from doctor-created appointments)
+  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
+  
+  // Fetch appointments from the API
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      const patientId = localStorage.getItem("patient_id");
+      if (!patientId) return; // Exit if no patient ID
+      
+      setLoading(true);
+      try {
+        const response = await fetch(`${backendUrl}/appointments?patient_id=${patientId}`, {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem("authToken")}`,
+            "Accept": "application/json"
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.length > 0) {
+            setUpcomingAppointments(data);
+            // Store in localStorage with patient-specific key
+            localStorage.setItem(`appointments_${patientId}`, JSON.stringify(data));
+          }
+        } else {
+          throw new Error("API failed");
+        }
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+        // Try to load from localStorage if API throws error
+        const cachedAppointments = localStorage.getItem(`appointments_${patientId}`);
+        
+        // Check if there are any global appointments (added by doctors)
+        const globalAppointments = JSON.parse(localStorage.getItem('appointments') || '[]');
+        const patientAppointments = globalAppointments.filter(apt => apt.patient_id == patientId);
+        
+        // Deduplicate appointments by ID
+        const existingAppts = cachedAppointments ? JSON.parse(cachedAppointments) : [];
+        const allAppts = [...existingAppts, ...patientAppointments];
+        
+        // Remove duplicates by creating a map with ID as key
+        const uniqueApptsMap = new Map();
+        allAppts.forEach(appt => {
+          uniqueApptsMap.set(appt.id, appt);
+        });
+        
+        const uniqueAppts = Array.from(uniqueApptsMap.values());
+        setUpcomingAppointments(uniqueAppts);
+        
+        // Update localStorage with deduplicated list
+        localStorage.setItem(`appointments_${patientId}`, JSON.stringify(uniqueAppts));
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAppointments();
+  }, [backendUrl]);
 
   const handleRatingChange = (rating: number) => {
     setFeedbackForm(prev => ({ ...prev, rating }));
@@ -445,10 +465,20 @@ const PatientDashboard = () => {
   };
 
   const handleSubmitFeedback = async () => {
-    if (!feedbackForm.category || !feedbackForm.doctor || !feedbackForm.rating) {
+    if (!feedbackForm.rating) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields (Medical Category, Doctor, Rating)",
+        description: "Please provide a rating",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if we have categories available to select from
+    if (categories.length === 0) {
+      toast({
+        title: "System Error",
+        description: "No feedback categories available. Please try again later.",
         variant: "destructive"
       });
       return;
@@ -468,31 +498,35 @@ const PatientDashboard = () => {
         localStorage.setItem("authToken", "demo-token");
       }
 
-      // Find selected doctor to get the ID
-      const selectedDoctor = doctors.find(doc => doc.name === feedbackForm.doctor);
-      if (!selectedDoctor) {
-        throw new Error("Selected doctor not found");
-      }
-
       // Find selected category to get the ID
       let primaryCategoryId;
       const matchingCategory = categories.find(cat => cat.name === feedbackForm.category);
       if (matchingCategory) {
         primaryCategoryId = matchingCategory.id;
+      } else if (feedbackForm.additionalCategories.length > 0) {
+        // Use first additional category if no primary category
+        primaryCategoryId = feedbackForm.additionalCategories[0].id;
       } else {
-        // If there's no exact match, use the first category or create a default ID
+        // Default to first category in the database if available
         primaryCategoryId = categories.length > 0 ? categories[0].id : 1;
+        
+        // Log this for debugging
+        console.log("Using default category ID:", primaryCategoryId);
       }
 
       // Create payload with the correct structure matching backend expectations
       const payload = {
         // Use patient_id as expected by the backend
         patient_id: parseInt(patientId),
-        // Use doctor_id as expected by the backend
-        doctor_id: parseInt(selectedDoctor.id),
+        // Only include doctor_id if a doctor is selected, otherwise use default doctor ID 1
+        doctor_id: feedbackForm.doctor ? 
+          parseInt(doctors.find(doc => doc.name === feedbackForm.doctor)?.id || "1") : 
+          1, // Default doctor ID instead of null
         category_id: primaryCategoryId,
         rating: feedbackForm.rating,
-        comment: feedbackForm.comment
+        comment: feedbackForm.comment,
+        // Flag to indicate if this feedback is general (not for specific doctor)
+        is_general: !feedbackForm.doctor
       };
 
       console.log("Submitting feedback payload:", payload);
@@ -509,11 +543,15 @@ const PatientDashboard = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`Failed to submit feedback: ${errorData.detail || response.statusText} (Status: ${response.status})`);
+        console.log("Error response from server details:", JSON.stringify(errorData, null, 2));
+        throw new Error(`Failed to submit feedback: ${JSON.stringify(errorData)} (Status: ${response.status})`);
       }
       
       const newFeedback = await response.json();
       console.log("Feedback submission successful:", newFeedback);
+
+      // Add to feedback history with proper status based on rating (1-2 negative, 3 neutral, 4-5 positive)
+      const feedbackStatus = newFeedback.rating <= 2 ? "Negative" : (newFeedback.rating === 3 ? "Neutral" : "Positive");
 
       setFeedbackHistory(prev => [
         ...prev,
@@ -521,10 +559,10 @@ const PatientDashboard = () => {
           id: newFeedback.id.toString(),
           date: new Date(newFeedback.created_at).toISOString().split("T")[0],
           category: categories.find(cat => cat.id === newFeedback.category_id)?.name || "N/A",
-          doctor: selectedDoctor.name,
+          doctor: feedbackForm.doctor || "General Feedback",
           rating: newFeedback.rating,
           comment: newFeedback.comment,
-          status: newFeedback.rating >= 4 ? "Reviewed" : "Pending"
+          status: feedbackStatus
         }
       ]);
 
@@ -542,31 +580,7 @@ const PatientDashboard = () => {
         isRecording: false
       });
 
-      // Also submit any additional categories if selected
-      for (const additionalCategory of feedbackForm.additionalCategories) {
-        try {
-          const additionalPayload = {
-            patient_id: parseInt(patientId),
-            doctor_id: parseInt(selectedDoctor.id),
-            category_id: additionalCategory.id,
-            rating: feedbackForm.rating,
-            comment: feedbackForm.comment
-          };
-
-          await fetch(`${backendUrl}/feedback`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`,
-              "Accept": "application/json"
-            },
-            body: JSON.stringify(additionalPayload)
-          });
-        } catch (additionalError) {
-          console.error("Additional category submission error:", additionalError);
-          // Don't block the main flow for additional categories
-        }
-      }
+      console.log("Feedback submitted successfully");
     } catch (error: any) {
       console.error("Feedback submission error:", error);
       toast({
@@ -579,66 +593,8 @@ const PatientDashboard = () => {
     }
   };
 
-  const [reminders, setReminders] = useState([
-    {
-      id: 1,
-      medication: "Paracetamol",
-      time: "08:00",
-      frequency: "Daily"
-    },
-    {
-      id: 2,
-      medication: "Ibuprofen",
-      time: "07:00",
-      frequency: "Every 6 hours"
-    }
-  ]);
-
-  const [newReminder, setNewReminder] = useState({
-    medication: "",
-    time: "",
-    frequency: ""
-  });
-  
-  // Fetch patient reminders
-  useEffect(() => {
-    const fetchReminders = async () => {
-      const patientId = localStorage.getItem("patient_id");
-      if (!patientId) return;
-      
-      setLoading(true);
-      try {
-        const response = await fetch(`${backendUrl}/reminders?patient_id=${patientId}`, {
-          headers: {
-            "Authorization": `Bearer ${localStorage.getItem("authToken")}`,
-            "Accept": "application/json"
-          }
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Failed to fetch reminders: ${errorData.detail || response.statusText}`);
-        }
-        
-        const data = await response.json();
-        if (data && data.length > 0) {
-          setReminders(data.map((reminder: any) => ({
-            id: reminder.id,
-            medication: reminder.medication,
-            time: reminder.time,
-            frequency: reminder.frequency
-          })));
-        }
-      } catch (error: any) {
-        console.error("Error fetching reminders:", error);
-        // Don't show toast for this error as it's not critical
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchReminders();
-  }, [backendUrl]);
+  // Reminders have been removed as patients shouldn't create reminders themselves
+  // Reminders will be managed by doctors when prescribing medications
 
   const handleContactSupport = () => {
     toast({
@@ -652,7 +608,6 @@ const PatientDashboard = () => {
     { id: "history", label: "Feedback History", icon: <History className="h-4 w-4" /> },
     { id: "appointments", label: "Appointments", icon: <Calendar className="h-4 w-4" /> },
     { id: "medications", label: "Medication", icon: <Pill className="h-4 w-4" /> },
-    { id: "reminders", label: "Reminder", icon: <Clock className="h-4 w-4" /> },
     { id: "support", label: "Contact Support", icon: <Headphones className="h-4 w-4" /> },
   ];
 
@@ -722,7 +677,7 @@ const PatientDashboard = () => {
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-4 gap-6">
+              <div className="grid md:grid-cols-3 gap-6">
                 <Card>
                   <CardContent className="p-6">
                     <div className="flex items-center space-x-3">
@@ -740,7 +695,7 @@ const PatientDashboard = () => {
                     <div className="flex items-center space-x-3">
                       <Calendar className="h-8 w-8 text-secondary" />
                       <div>
-                        <p className="text-sm text-muted-foreground">{translate("Upcoming Appointments")}</p>
+                        <p className="text-sm text-muted-foreground">{translate("Doctor Appointments")}</p>
                         <p className="text-2xl font-bold">{upcomingAppointments.length}</p>
                       </div>
                     </div>
@@ -752,20 +707,8 @@ const PatientDashboard = () => {
                     <div className="flex items-center space-x-3">
                       <Pill className="h-8 w-8 text-green-600" />
                       <div>
-                        <p className="text-sm text-muted-foreground">Medications</p>
+                        <p className="text-sm text-muted-foreground">Prescribed Medications</p>
                         <p className="text-2xl font-bold">{medications.length}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center space-x-3">
-                      <Clock className="h-8 w-8 text-blue-600" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">Reminders</p>
-                        <p className="text-2xl font-bold">{reminders.length}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -834,13 +777,13 @@ const PatientDashboard = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Doctor</label>
+                        <label className="text-sm font-medium">Doctor (Optional)</label>
                         <Select
                           onValueChange={(value) => setFeedbackForm(prev => ({ ...prev, doctor: value }))}
                           disabled={!feedbackForm.category || loading}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder={loading ? "Loading doctors..." : "Select doctor"} />
+                            <SelectValue placeholder={loading ? "Loading doctors..." : "Optional - Select doctor"} />
                           </SelectTrigger>
                           <SelectContent>
                             {doctors.map(doctor => (
@@ -850,6 +793,9 @@ const PatientDashboard = () => {
                             ))}
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Leave empty for general feedback about the hospital/service
+                        </p>
                       </div>
                     </div>
 
@@ -922,17 +868,23 @@ const PatientDashboard = () => {
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className="flex">
-                                  {[1, 2, 3, 4, 5].map(star => (
-                                    <Star
-                                      key={star}
-                                      className={`h-4 w-4 ${star <= feedback.rating ? 'fill-warning text-warning' : 'text-muted-foreground'}`}
-                                    />
-                                  ))}
+                                <div className="flex flex-col items-end">
+                                  <div className="flex">
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                      <Star
+                                        key={star}
+                                        className={`h-4 w-4 ${star <= feedback.rating ? 'fill-warning text-warning' : 'text-muted-foreground'}`}
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className={`text-xs font-medium ${
+                                    feedback.rating <= 2 ? 'text-red-500' : 
+                                    feedback.rating === 3 ? 'text-yellow-500' : 
+                                    'text-green-500'
+                                  }`}>
+                                    {feedback.rating <= 2 ? 'Negative' : feedback.rating === 3 ? 'Neutral' : 'Positive'}
+                                  </span>
                                 </div>
-                                <Badge variant={feedback.status === "Reviewed" ? "default" : "secondary"}>
-                                  {feedback.status}
-                                </Badge>
                               </div>
                             </div>
                             <p className="text-muted-foreground">{feedback.comment}</p>
@@ -961,14 +913,17 @@ const PatientDashboard = () => {
                         {upcomingAppointments.map(appointment => (
                           <div key={appointment.id} className="border rounded-lg p-3 flex items-center justify-between">
                             <div>
-                              <p className="font-medium">Dr {appointment.doctorName} - {appointment.category}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {appointment.date} at {appointment.time} - {appointment.type}
+                              <p className="font-medium">
+                                {appointment.doctor_name || "Doctor"} 
+                                {appointment.category && ` - ${appointment.category}`}
                               </p>
+                              <p className="text-sm text-muted-foreground">
+                                {appointment.date} at {appointment.time}
+                              </p>
+                              {appointment.description && (
+                                <p className="text-sm italic mt-1">{appointment.description || appointment.notes}</p>
+                              )}
                             </div>
-                            <Badge variant={appointment.status === "Attended" ? "default" : "secondary"}>
-                              {appointment.status}
-                            </Badge>
                           </div>
                         ))}
                       </div>
@@ -1004,211 +959,7 @@ const PatientDashboard = () => {
                 </div>
               )}
 
-              {activeTab === "reminders" && (
-                <div className="space-y-6">
-                  <Card data-testid="add-reminder-section">
-                    <CardHeader>
-                      <CardTitle>Add Medication Reminder</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid md:grid-cols-3 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-sm font-medium">Medication</label>
-                          <Input
-                            type="text"
-                            className="w-full border rounded px-3 py-2"
-                            placeholder="Enter medication name"
-                            value={newReminder.medication}
-                            onChange={(e) => setNewReminder(prev => ({ ...prev, medication: e.target.value }))}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-sm font-medium">Time</label>
-                          <Input
-                            type="time"
-                            className="w-full border rounded px-3 py-2"
-                            value={newReminder.time}
-                            onChange={(e) => setNewReminder(prev => ({ ...prev, time: e.target.value }))}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-sm font-medium">Frequency</label>
-                          <Select onValueChange={(value) => setNewReminder(prev => ({ ...prev, frequency: value }))}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select frequency" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="once-daily">Once daily</SelectItem>
-                              <SelectItem value="twice-daily">Twice daily</SelectItem>
-                              <SelectItem value="three-times">Three times daily</SelectItem>
-                              <SelectItem value="weekly">Weekly</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <Button
-                        onClick={async () => {
-                          if (!newReminder.medication || !newReminder.time || !newReminder.frequency) {
-                            toast({
-                              title: "Missing Fields",
-                              description: "Please fill out all fields.",
-                              variant: "destructive"
-                            });
-                            return;
-                          }
-                          
-                          const patientId = localStorage.getItem("patient_id");
-                          if (!patientId) {
-                            toast({
-                              title: "Authentication Error",
-                              description: "You must be logged in to create reminders.",
-                              variant: "destructive"
-                            });
-                            return;
-                          }
-                          
-                          setLoading(true);
-                          try {
-                            // Format time for API
-                            const timeFormatted = newReminder.time;
-                            
-                            const response = await fetch(`${backendUrl}/reminders`, {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                                "Authorization": `Bearer ${localStorage.getItem("authToken")}`,
-                                "Accept": "application/json"
-                              },
-                              body: JSON.stringify({
-                                patient_id: parseInt(patientId),
-                                medication: newReminder.medication,
-                                time: timeFormatted,
-                                frequency: newReminder.frequency
-                              })
-                            });
-                            
-                            if (!response.ok) {
-                              const errorData = await response.json();
-                              throw new Error(`Failed to create reminder: ${errorData.detail || response.statusText}`);
-                            }
-                            
-                            const newEntry = await response.json();
-                            
-                            setReminders(prev => [...prev, {
-                              id: newEntry.id,
-                              medication: newEntry.medication,
-                              time: newEntry.time,
-                              frequency: newEntry.frequency
-                            }]);
-                            
-                            setNewReminder({ medication: "", time: "", frequency: "" });
-                            toast({ 
-                              title: "Reminder Added", 
-                              description: "A SMS reminder will be sent to your registered phone number."
-                            });
-                          } catch (error: any) {
-                            console.error("Error creating reminder:", error);
-                            toast({
-                              title: "Error",
-                              description: `Failed to create reminder: ${error.message}`,
-                              variant: "destructive"
-                            });
-                            
-                            // Fallback to local storage if API fails
-                            const newEntry = {
-                              id: Date.now(),
-                              ...newReminder
-                            };
-                            setReminders(prev => [...prev, newEntry]);
-                            setNewReminder({ medication: "", time: "", frequency: "" });
-                            toast({ 
-                              title: "Reminder Added Locally", 
-                              description: "The reminder was saved locally as the server is unavailable."
-                            });
-                          } finally {
-                            setLoading(false);
-                          }
-                        }}
-                        variant="healthcare"
-                        disabled={loading}
-                      >
-                        <Send className="h-4 w-4 mr-2" />
-                        Save Reminder {loading && "(Sending...)"}
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Existing Reminders</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {reminders.length === 0 && <p className="text-muted-foreground">No reminders yet.</p>}
-                      {reminders.map(reminder => (
-                        <div key={reminder.id} className="border rounded px-4 py-3 flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold">{reminder.medication}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {reminder.time} — {reminder.frequency}
-                            </p>
-                          </div>
-                          <div className="flex space-x-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                setNewReminder({
-                                  medication: reminder.medication,
-                                  time: reminder.time,
-                                  frequency: reminder.frequency
-                                });
-                                // Scroll to add reminder section
-                                document.querySelector('[data-testid="add-reminder-section"]')?.scrollIntoView({ behavior: 'smooth' });
-                              }}
-                            >
-                              Edit
-                            </Button>
-                            <Button 
-                              variant="destructive" 
-                              size="sm"
-                              onClick={async () => {
-                                try {
-                                  // First try deleting from API
-                                  const response = await fetch(`${backendUrl}/reminders/${reminder.id}`, {
-                                    method: "DELETE",
-                                    headers: {
-                                      "Authorization": `Bearer ${localStorage.getItem("authToken")}`,
-                                      "Accept": "application/json"
-                                    }
-                                  });
-                                  
-                                  if (!response.ok) {
-                                    throw new Error("Failed to delete reminder");
-                                  }
-                                  
-                                  // Remove from state
-                                  setReminders(prev => prev.filter(r => r.id !== reminder.id));
-                                  toast({ title: "Reminder Deleted" });
-                                } catch (error) {
-                                  console.error("Error deleting reminder:", error);
-                                  // Fallback to local state only
-                                  setReminders(prev => prev.filter(r => r.id !== reminder.id));
-                                  toast({ 
-                                    title: "Reminder Deleted Locally",
-                                    description: "The reminder was removed locally. Server sync failed."
-                                  });
-                                }
-                              }}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+              {/* Reminders tab has been removed as patients shouldn't create reminders themselves */}
 
               {activeTab === "support" && (
                 <Card>

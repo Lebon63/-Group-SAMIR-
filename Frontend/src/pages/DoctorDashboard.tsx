@@ -164,14 +164,32 @@ const DoctorDashboard = () => {
         const doctorName = localStorage.getItem("doctorName");
         const doctorSpecialty = localStorage.getItem("doctorSpecialty");
 
+        // First check if we have user data in the localStorage (from login)
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // If we have user data from login and it's a doctor role
+        if (storedUser && storedUser.id && storedUser.name && storedUser.role === 'doctor') {
+          console.log("Using doctor data from login session:", storedUser);
+          
+          // Save doctor details in localStorage using the expected keys
+          localStorage.setItem("doctorId", storedUser.id.toString());
+          localStorage.setItem("doctorName", storedUser.name);
+          localStorage.setItem("doctorSpecialty", storedUser.specialty || "General Medicine");
+          
+          // Update profile state
+          setDoctorProfile({
+            id: storedUser.id.toString(),
+            name: storedUser.name,
+            specialty: storedUser.specialty || "General Medicine"
+          });
+        }
         // If we don't have doctor info, use a fallback for demo
-        if (!doctorId || !doctorName || !doctorSpecialty) {
+        else if (!doctorId || !doctorName || !doctorSpecialty) {
           console.log("Fetching doctor profile data from backend...");
           try {
             // Attempt to get doctor profile from server
             const profileRes = await fetch(`${backendUrl}/doctor/profile?email=${encodeURIComponent(doctorEmail || "doctor@example.com")}`, {
               headers: {
-                "Authorization": `Bearer ${token || "demo-token"}`,
                 "Accept": "application/json"
               }
             });
@@ -501,8 +519,13 @@ const DoctorDashboard = () => {
         const updatedAppointments = [...upcomingAppointments, newAppointment];
         setUpcomingAppointments(updatedAppointments);
         
-        // Save to localStorage for persistence
+        // Save to doctor-specific localStorage for persistence
         localStorage.setItem("doctorAppointments", JSON.stringify(updatedAppointments));
+        
+        // Also save to global appointments storage for patient to see
+        const globalAppointments = JSON.parse(localStorage.getItem('appointments') || '[]');
+        globalAppointments.push(newAppointment);
+        localStorage.setItem('appointments', JSON.stringify(globalAppointments));
         
         toast({
           title: "Appointment Created Locally",
@@ -572,8 +595,10 @@ const DoctorDashboard = () => {
         }
       }
       
-      // Create medication payload
+      // Create medication payload with required IDs for proper database storage
       const medicationPayload = {
+        patient_id: parseInt(patientId),
+        doctor_id: parseInt(doctorId),
         patient_name: medicationForm.patientName,
         medication: medicationForm.medication,
         dosage: medicationForm.dosage,
@@ -607,19 +632,27 @@ const DoctorDashboard = () => {
         
         const newMedication = await response.json();
         
-        // Then try to create a reminder
-        const reminderResponse = await fetch(`${backendUrl}/reminders`, {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token || "demo-token"}`,
-            "Accept": "application/json"
-          },
-          body: JSON.stringify(reminderPayload)
-        });
-        
-        if (!reminderResponse.ok) {
-          console.warn("Failed to create reminder, but medication was added");
+        // Then try to create a reminder with Twilio
+        let reminderSuccessful = false;
+        try {
+          const reminderResponse = await fetch(`${backendUrl}/reminders`, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token || "demo-token"}`,
+              "Accept": "application/json"
+            },
+            body: JSON.stringify(reminderPayload)
+          });
+          
+          if (reminderResponse.ok) {
+            reminderSuccessful = true;
+            console.log("SMS reminder created successfully");
+          } else {
+            console.warn("Failed to create SMS reminder, but medication was added");
+          }
+        } catch (reminderError) {
+          console.warn("Twilio reminder error:", reminderError);
         }
         
         // Update medications list
@@ -631,7 +664,9 @@ const DoctorDashboard = () => {
         
         toast({
           title: "Medication Added",
-          description: `Prescription added for ${medicationForm.patientName} with medication reminder set.`
+          description: reminderSuccessful 
+            ? `Prescription added for ${medicationForm.patientName} with SMS reminder set.`
+            : `Prescription added for ${medicationForm.patientName}. SMS reminder could not be set, but medication will be visible to the patient.`
         });
         
       } catch (error) {
@@ -653,8 +688,13 @@ const DoctorDashboard = () => {
         const updatedMedications = [...medications, newMedication];
         setMedications(updatedMedications);
         
-        // Save to localStorage for persistence
+        // Save to doctor-specific localStorage for persistence
         localStorage.setItem("doctorMedications", JSON.stringify(updatedMedications));
+        
+        // Also save to global medications storage for patient to see
+        const globalMedications = JSON.parse(localStorage.getItem('medications') || '[]');
+        globalMedications.push(newMedication);
+        localStorage.setItem('medications', JSON.stringify(globalMedications));
         
         toast({
           title: "Medication Added Locally",
@@ -801,7 +841,7 @@ const DoctorDashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-3xl font-bold text-foreground">Doctor Dashboard</h1>
-                  <p className="text-muted-foreground">{doctorProfile.name} - Manage your patients and appointments</p>
+                  <p className="text-muted-foreground">{doctorProfile.name} - Create appointments and prescribe medications for your patients</p>
                 </div>
                 <Badge variant="secondary" className="text-lg px-4 py-2">
                   {doctorProfile.specialty || "Specialty Not Set"}
@@ -867,7 +907,7 @@ const DoctorDashboard = () => {
                       <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center space-x-3">
                           <MessageSquare className="h-5 w-5" />
-                          <span>Patient Feedback</span>
+                          <span>Patient Feedback for Dr. {doctorProfile.name.split(' ')[doctorProfile.name.split(' ').length-1]}</span>
                         </CardTitle>
                         <div className="flex items-center space-x-4">
                           <div className="flex items-center space-x-2">
@@ -946,7 +986,7 @@ const DoctorDashboard = () => {
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2">
                         <Plus className="h-5 w-5" />
-                        <span>Create New Appointment</span>
+                        <span>Schedule Appointment For Patient</span>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -975,6 +1015,7 @@ const DoctorDashboard = () => {
                             type="date"
                             value={appointmentForm.date}
                             onChange={(e) => setAppointmentForm(prev => ({ ...prev, date: e.target.value }))}
+                            min={new Date().toISOString().split('T')[0]} // Prevent selecting past dates
                           />
                         </div>
                         
@@ -1058,7 +1099,7 @@ const DoctorDashboard = () => {
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
                       <Pill className="h-5 w-5" />
-                      <span>Manage Patient Medications</span>
+                      <span>Prescribe Medications For Patients</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
@@ -1127,7 +1168,7 @@ const DoctorDashboard = () => {
 
                     <Button onClick={handleAddMedication} variant="healthcare" className="w-full" disabled={loading}>
                       <Pill className="h-4 w-4 mr-2" />
-                      Add Prescription & Set Reminders
+                      Add Prescription & Create Patient Reminders
                     </Button>
 
                     <CardTitle className="flex items-center space-x-2">

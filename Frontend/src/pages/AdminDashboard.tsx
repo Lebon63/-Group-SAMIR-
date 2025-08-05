@@ -21,8 +21,10 @@ import {
   Shield,
   X,
   Eye,
-  EyeOff
+  EyeOff,
+  Activity
 } from "lucide-react";
+import HospitalDashboard from "@/components/hospital/HospitalDashboard";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/DashboardLayout";
 
@@ -114,7 +116,12 @@ const AdminDashboard = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const fetchData = async (endpoint: string, setter: React.Dispatch<React.SetStateAction<any[]>>, errorMsg: string) => {
+  interface GenericDataItem {
+    id: string;
+    [key: string]: unknown;
+  }
+  
+  const fetchData = async (endpoint: string, setter: React.Dispatch<React.SetStateAction<GenericDataItem[]>>, errorMsg: string) => {
     try {
       console.log(`Fetching ${backendUrl}${endpoint}`);
       const response = await fetch(`${backendUrl}${endpoint}`, {
@@ -141,7 +148,7 @@ const AdminDashboard = () => {
       // Store the raw data for persistence
       localStorage.setItem(`admin_${endpoint.replace(/\//g, '_')}`, JSON.stringify(data));
       
-      setter(data.map((item: any) => {
+      setter(data.map((item: GenericDataItem) => {
         if (endpoint.includes("doctor")) {
           return {
             id: item.id.toString(),
@@ -174,8 +181,9 @@ const AdminDashboard = () => {
         }
         return item;
       }));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`Error fetching ${errorMsg}:`, error);
+      const errorMessage = error instanceof Error ? error.message : `Failed to fetch ${errorMsg}`;
       
       // Try to load from localStorage if API fails
       const savedData = localStorage.getItem(`admin_${endpoint.replace(/\//g, '_')}`);
@@ -183,7 +191,7 @@ const AdminDashboard = () => {
         console.log(`Using cached data for ${endpoint}`);
         const parsedData = JSON.parse(savedData);
         
-        setter(parsedData.map((item: any) => {
+        setter(parsedData.map((item: GenericDataItem) => {
           if (endpoint.includes("doctor")) {
             return {
               id: item.id.toString(),
@@ -284,11 +292,12 @@ const AdminDashboard = () => {
       setIsEditing(true);
       setEditingDoctorId(doctorId);
       setShowAddDoctorForm(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`Error fetching doctor ${doctorId}:`, error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to load doctor data";
       toast({
         title: "Error",
-        description: error.message || "Failed to load doctor data. Please check if the backend is running.",
+        description: errorMessage || "Failed to load doctor data. Please check if the backend is running.",
         variant: "destructive"
       });
     }
@@ -399,11 +408,12 @@ const AdminDashboard = () => {
 
       await fetchData("/doctor", setDoctors, "doctors");
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Doctor submission error:", error);
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
       toast({
         title: "Error",
-        description: error.message || "An unexpected error occurred while submitting doctor data.",
+        description: errorMessage || "An unexpected error occurred while submitting doctor data.",
         variant: "destructive"
       });
     }
@@ -445,11 +455,12 @@ const AdminDashboard = () => {
       } else {
         await fetchData("/patients", setPatients, "patients");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`Error updating ${userType} status:`, error);
+      const errorMessage = error instanceof Error ? error.message : `Failed to update ${userType} status`;
       toast({
         title: "Error",
-        description: error.message || `Failed to update ${userType} status. Please check if the backend is running.`,
+        description: errorMessage || `Failed to update ${userType} status. Please check if the backend is running.`,
         variant: "destructive"
       });
     }
@@ -472,7 +483,8 @@ const AdminDashboard = () => {
     { id: "doctors", label: "Manage Doctors", icon: <UserPlus className="h-4 w-4" /> },
     { id: "patients", label: "Manage Patients", icon: <Users className="h-4 w-4" /> },
     { id: "analytics", label: "Analytics", icon: <TrendingUp className="h-4 w-4" /> },
-    { id: "appointments", label: "All Appointments", icon: <Calendar className="h-4 w-4" /> },
+    //{ id: "appointments", label: "All Appointments", icon: <Calendar className="h-4 w-4" /> },
+    { id: "feedback", label: "Patient Feedback", icon: <MessageSquare className="h-4 w-4" /> },
     { id: "settings", label: "System Settings", icon: <Settings className="h-4 w-4" /> },
   ];
 
@@ -624,11 +636,11 @@ const AdminDashboard = () => {
                       <CardContent className="space-y-4">
                         <div className="flex items-center justify-between">
                           <span>System Uptime</span>
-                          <Badge variant="default">99.9%</Badge>
+                          <Badge variant="default">40.9%</Badge>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>Active Sessions</span>
-                          <Badge variant="secondary">156</Badge>
+                          <Badge variant="secondary">4</Badge>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>SMS Service</span>
@@ -931,90 +943,174 @@ const AdminDashboard = () => {
                 </Card>
               )}
               {activeTab === "analytics" && (
-                <div className="grid lg:grid-cols-2 gap-6">
+                <div className="space-y-6">
+                  {/* Original Feedback Analytics Card */}
+                  <div className="grid lg:grid-cols-2 gap-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center space-x-2">
+                          <BarChart3 className="h-5 w-5" />
+                          <span>Feedback Analytics</span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="text-center p-4 bg-muted/30 rounded-lg">
+                            <p className="text-2xl font-bold text-primary">{feedbackAnalytics.positivePercentage}%</p>
+                            <p className="text-sm text-muted-foreground">Positive Feedback</p>
+                          </div>
+                          <div className="text-center p-4 bg-muted/30 rounded-lg">
+                            <p className="text-2xl font-bold text-secondary">{feedbackAnalytics.responseTime}</p>
+                            <p className="text-sm text-muted-foreground">Avg Response Time</p>
+                          </div>
+                        </div>                      
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Satisfaction Rate</span>
+                            <span>{feedbackAnalytics.positivePercentage}%</span>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-2">
+                            <div 
+                              className="bg-primary h-2 rounded-full" 
+                              style={{ width: `${feedbackAnalytics.positivePercentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* Integrated Hospital Dashboard */}
+                  <Card className="mt-6">
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Activity className="h-5 w-5" />
+                        <span>Hospital Analytics</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-auto">
+                        <HospitalDashboard />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2">
-                        <BarChart3 className="h-5 w-5" />
-                        <span>Feedback Analytics</span>
+                        <Star className="h-5 w-5" />
+                        <span>Rating Distribution</span>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="text-center p-4 bg-muted/30 rounded-lg">
-                          <p className="text-2xl font-bold text-primary">{feedbackAnalytics.positivePercentage}%</p>
-                          <p className="text-sm text-muted-foreground">Positive Feedback</p>
-                        </div>
-                        <div className="text-center p-4 bg-muted/30 rounded-lg">
-                          <p className="text-2xl font-bold text-secondary">{feedbackAnalytics.responseTime}</p>
-                          <p className="text-sm text-muted-foreground">Avg Response Time</p>
-                        </div>
-                      </div>                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Satisfaction Rate</span>
-                          <span>{feedbackAnalytics.positivePercentage}%</span>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-2">
-                          <div 
-                            className="bg-primary h-2 rounded-full" 
-                            style={{ width: `${feedbackAnalytics.positivePercentage}%` }}
-                          ></div>
+                      <div className="mt-4 space-y-2">
+                        <div className="space-y-2">
+                          {[5, 4, 3, 2, 1].map(rating => {
+                            const ratingCount = feedback.filter(f => Math.floor(f.rating) === rating).length;
+                            const percentage = feedback.length > 0 ? Math.round((ratingCount / feedback.length) * 100) : 0;
+                            return (
+                              <div key={rating} className="flex items-center space-x-2">
+                                <div className="w-6 text-sm">{rating}★</div>
+                                <div className="w-full bg-muted rounded-full h-2">
+                                  <div 
+                                    className={`h-2 rounded-full ${rating >= 4 ? 'bg-success' : rating === 3 ? 'bg-warning' : 'bg-destructive'}`}
+                                    style={{ width: `${percentage}%` }}
+                                  ></div>
+                                </div>
+                                <div className="w-10 text-xs text-muted-foreground">{percentage}%</div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
+                      
                       <Button onClick={() => handleExportData("Analytics")} variant="outline" className="w-full">
                         <Download className="h-4 w-4 mr-2" />
                         Export Analytics Report
                       </Button>
                     </CardContent>
                   </Card>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Department Performance</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {specialtyOptions.map(specialty => {
-                        const specialtyDoctors = doctors.filter(d => d.specialty === specialty.value);
-                        const avgRating = specialtyDoctors.length > 0 ? specialtyDoctors.reduce((acc, curr) => acc + (curr.averageRating || 0), 0) / specialtyDoctors.length : 0;                        
-                        return (
-                          <div key={specialty.value} className="flex items-center justify-between">
-                            <span>{specialty.label}</span>
-                            <div className="flex items-center space-x-2">
-                              <Star className="h-4 w-4 fill-warning text-warning" />
-                              <span>{avgRating.toFixed(1)}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </CardContent>
-                  </Card>
+                 
                 </div>
               )}
-              {activeTab === "appointments" && (
+            
+              {activeTab === "feedback" && (
                 <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="flex items-center space-x-2">
-                        <Calendar className="h-5 w-5" />
-                        <span>All Appointments</span>
+                        <MessageSquare className="h-5 w-5" />
+                        <span>Patient Feedback</span>
                       </CardTitle>
-                      <Button onClick={() => handleExportData("Appointments")} variant="outline">
+                      <Button onClick={() => handleExportData("Feedback")} variant="outline">
                         <Download className="h-4 w-4 mr-2"/>
-                        Export Schedule
+                        Export Feedback
                       </Button>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-center py-12">
-                      <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Calendar View</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Comprehensive calendar view of all hospital appointments would be displayed here.
-                      </p>
-                      <Button variant="healthcare">
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Load Calendar View
-                      </Button>
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2">
+                        <Search className="h-4 w-4 text-muted-foreground" />
+                        <Input 
+                          placeholder="Search feedback..." 
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="max-w-sm"
+                        />
+                        <Select>
+                          <SelectTrigger className="w-40">
+                            <SelectValue placeholder="Filter by rating" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Ratings</SelectItem>
+                            <SelectItem value="positive">Positive (4-5)</SelectItem>
+                            <SelectItem value="neutral">Neutral (3)</SelectItem>
+                            <SelectItem value="negative">Negative (1-2)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Patient</TableHead>
+                            <TableHead>Doctor</TableHead>
+                            <TableHead>Rating</TableHead>
+                            <TableHead>Comment</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {feedback.length > 0 ? (
+                            feedback.map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell className="font-medium">{item.patient}</TableCell>
+                                <TableCell>{item.doctor}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center space-x-1">
+                                    <Star className="h-4 w-4 fill-warning text-warning" />
+                                    <span>{item.rating.toFixed(1)}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="max-w-xs truncate">{item.comment}</TableCell>
+                                <TableCell>{new Date(item.date).toLocaleDateString()}</TableCell>
+                                <TableCell>
+                                  <Badge variant={item.sentiment === "positive" ? "default" : "secondary"}>
+                                    {item.sentiment}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground">
+                                No feedback found.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
                     </div>
                   </CardContent>
                 </Card>

@@ -8,6 +8,9 @@ from app.patient import router as patient_router
 from app.feedback import router as feedback_router
 from app.auth import router as auth_router
 from app.reminders import router as reminders_router
+from app.appointments import router as appointments_router, public_router as appointments_public_router
+from app.medications import router as medications_router
+from app.statistics import router as statistics_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,6 +43,10 @@ app.include_router(patient_router, prefix="/patients", tags=["Patients"])
 app.include_router(feedback_router, prefix="/feedback", tags=["Feedback"])
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 app.include_router(reminders_router, prefix="/reminders", tags=["Reminders"])
+app.include_router(appointments_router, prefix="/appointments", tags=["Appointments"])
+app.include_router(appointments_public_router, prefix="/appointments/public", tags=["Appointments Public"])
+app.include_router(medications_router, prefix="/medications", tags=["Medications"])
+app.include_router(statistics_router)
 
 @app.get("/health")
 def health_check():

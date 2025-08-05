@@ -52,10 +52,26 @@ const FixedPatientFeedback = () => {
   const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
   const handleSubmitFeedback = async () => {
-    if (!feedbackForm.category || !feedbackForm.doctor || !feedbackForm.rating) {
+    if (!feedbackForm.category || !feedbackForm.rating) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields (Medical Category, Doctor, Rating)",
+        description: "Please fill in all required fields (Medical Category and Rating)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check for duplicate feedback submission
+    const duplicateCheck = feedbackHistory.some(fb => 
+      fb.category === feedbackForm.category && 
+      fb.doctor === feedbackForm.doctor && 
+      fb.comment === feedbackForm.comment
+    );
+    
+    if (duplicateCheck) {
+      toast({
+        title: "Duplicate Feedback",
+        description: "You have already submitted similar feedback. Please modify your submission.",
         variant: "destructive"
       });
       return;
@@ -75,12 +91,6 @@ const FixedPatientFeedback = () => {
         localStorage.setItem("authToken", "demo-token");
       }
 
-      // Find selected doctor to get the ID
-      const selectedDoctor = doctors.find(doc => doc.name === feedbackForm.doctor);
-      if (!selectedDoctor) {
-        throw new Error("Selected doctor not found");
-      }
-
       // Find selected category to get the ID
       let primaryCategoryId;
       const matchingCategory = categories.find(cat => cat.name === feedbackForm.category);
@@ -95,12 +105,19 @@ const FixedPatientFeedback = () => {
       const payload = {
         // Use patient_id instead of patient_name
         patient_id: parseInt(patientId),
-        // Use doctor_id instead of doctor_name
-        doctor_id: parseInt(selectedDoctor.id),
         category_id: primaryCategoryId,
         rating: feedbackForm.rating,
         comment: feedbackForm.comment
       };
+      
+      // Add doctor_id only if a doctor was selected (making it optional)
+      if (feedbackForm.doctor) {
+        // Find selected doctor to get the ID
+        const selectedDoctor = doctors.find(doc => doc.name === feedbackForm.doctor);
+        if (selectedDoctor) {
+          payload.doctor_id = parseInt(selectedDoctor.id);
+        }
+      }
 
       console.log("Submitting feedback payload:", payload);
       
@@ -121,16 +138,23 @@ const FixedPatientFeedback = () => {
       
       const newFeedback = await response.json();
 
+      // Find selected doctor name for the history entry
+      let doctorName = "General Feedback";
+      if (payload.doctor_id) {
+        const selectedDoctor = doctors.find(doc => parseInt(doc.id) === payload.doctor_id);
+        doctorName = selectedDoctor ? selectedDoctor.name : "Unknown Doctor";
+      }
+
       setFeedbackHistory(prev => [
         ...prev,
         {
           id: newFeedback.id.toString(),
           date: new Date().toISOString().split("T")[0],
           category: categories.find(cat => cat.id === newFeedback.category_id)?.name || "N/A",
-          doctor: selectedDoctor.name,
+          doctor: doctorName,
           rating: newFeedback.rating,
           comment: newFeedback.comment,
-          status: newFeedback.rating >= 4 ? "Reviewed" : "Pending"
+          status: newFeedback.rating <= 2 ? "Negative" : (newFeedback.rating === 3 ? "Neutral" : "Positive")
         }
       ]);
 
