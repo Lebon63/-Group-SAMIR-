@@ -3,7 +3,7 @@
   command = "npm install --include=dev && npm run build"
 
 [context.production.environment]
-  NODE_VERSION = "20" 
+  NODE_VERSION = "18" 
 [build.environment]
   NPM_FLAGS = "--no-corepack"
 [[redirects]]
