@@ -1,9 +1,8 @@
 [build]
   publish = "dist"
-  command = "npm install --include=dev && npm run build"
+  command = "pnpm install --no-frozen-lockfile && npm run build"
 
 [build.environment]
-  PNPM_ENABLE_FROZEN_LOCKFILE = "false"
   NPM_FLAGS = "--no-corepack"
 
 [context.production.environment]
