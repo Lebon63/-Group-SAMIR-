@@ -27,14 +27,7 @@
    pip install -r requirements.txt
    ```
 
-3. Set up Twilio environment variables:
-   ```
-   export TWILIO_ACCOUNT_SID="your_account_sid"
-   export TWILIO_AUTH_TOKEN="your_auth_token"
-   export TWILIO_PHONE_NUMBER="your_twilio_phone_number"
-   ```
-
-4. Run the backend server:
+3. Run the backend server:
    ```
    uvicorn app.main:app --reload
    ```
