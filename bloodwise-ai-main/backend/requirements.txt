@@ -1,3 +1,5 @@
+setuptools>=42
+wheel
 fastapi==0.103.0
 pydantic==2.4.2
 sqlalchemy==2.0.19
