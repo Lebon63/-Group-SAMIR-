@@ -1,0 +1,10 @@
+[build]
+  base = "bloodwise-ai-main"
+  command = "npm run dev"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
