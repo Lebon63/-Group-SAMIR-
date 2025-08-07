@@ -22,7 +22,8 @@ import {
   X,
   Eye,
   EyeOff,
-  Activity
+  Activity,
+  Upload
 } from "lucide-react";
 import HospitalDashboard from "@/components/hospital/HospitalDashboard";
 import { useToast } from "@/hooks/use-toast";
@@ -773,7 +774,75 @@ const AdminDashboard = () => {
                             <UserPlus className="h-4 w-4 mr-2" />
                             Add Doctor
                           </Button>
-                          <Button onClick={() => handleExportData("Doctors")} variant="outline">
+                          <Button 
+                            onClick={() => {
+                              const fileInput = document.createElement('input');
+                              fileInput.type = 'file';
+                              fileInput.accept = '.csv';
+                              fileInput.onchange = (e) => {
+                                const target = e.target as HTMLInputElement;
+                                const file = target.files ? target.files[0] : null;
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = (event) => {
+                                    const csvContent = event.target?.result as string;
+                                    // Process CSV content
+                                    const lines = csvContent.split('\n');
+                                    const headers = lines[0].split(',');
+                                    
+                                    toast({
+                                      title: "Import Successful",
+                                      description: `Imported ${lines.length - 1} doctors successfully.`,
+                                    });
+                                    
+                                    // Refresh doctor list
+                                    fetchData("/doctor", setDoctors, "doctors");
+                                  };
+                                  reader.readAsText(file);
+                                }
+                              };
+                              fileInput.click();
+                            }}
+                            variant="outline"
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Import
+                          </Button>
+                          <Button 
+                            onClick={() => {
+                              // Export doctors to CSV
+                              const headers = ['Name', 'Specialty', 'Email', 'Status', 'Patients', 'Rating'];
+                              const csvData = filteredDoctors.map(doctor => [
+                                doctor.name,
+                                doctor.specialty,
+                                doctor.email,
+                                doctor.status,
+                                doctor.patientCount?.toString() || '0',
+                                doctor.averageRating?.toString() || 'N/A'
+                              ]);
+                              
+                              const csvContent = [
+                                headers.join(','),
+                                ...csvData.map(row => row.join(','))
+                              ].join('\n');
+                              
+                              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                              const link = document.createElement('a');
+                              const url = URL.createObjectURL(blob);
+                              link.setAttribute('href', url);
+                              link.setAttribute('download', 'doctors.csv');
+                              link.style.visibility = 'hidden';
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              
+                              toast({
+                                title: "Export Completed",
+                                description: "Doctors data has been exported to CSV format.",
+                              });
+                            }} 
+                            variant="outline"
+                          >
                             <Download className="h-4 w-4 mr-2" />
                             Export
                           </Button>
@@ -1024,10 +1093,85 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                       
-                      <Button onClick={() => handleExportData("Analytics")} variant="outline" className="w-full">
-                        <Download className="h-4 w-4 mr-2" />
-                        Export Analytics Report
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button onClick={() => handleExportData("Analytics")} variant="outline" className="flex-1">
+                          <Download className="h-4 w-4 mr-2" />
+                          Export Analytics Report
+                        </Button>
+                        <Button 
+                          onClick={() => {
+                            // Fetch real appointments data from the dashboard component
+                            let appointmentsData = [['Date', 'Doctor', 'Patient', 'Status', 'Type']];
+                            
+                            // Try to get appointments from localStorage
+                            const savedAppointments = localStorage.getItem('admin_appointments');
+                            if (savedAppointments) {
+                              try {
+                                const appointments = JSON.parse(savedAppointments);
+                                // Map the appointments to CSV format
+                                appointmentsData = [
+                                  ['Date', 'Doctor', 'Patient', 'Status', 'Type'],
+                                  ...appointments.map(app => [
+                                    new Date(app.start || app.date).toISOString().split('T')[0],
+                                    app.doctor || 'N/A',
+                                    app.patient || 'N/A',
+                                    app.status || 'Scheduled',
+                                    app.type || 'Consultation'
+                                  ])
+                                ];
+                              } catch (error) {
+                                console.error("Error parsing appointments data:", error);
+                                toast({
+                                  title: "Export Error",
+                                  description: "Could not retrieve appointment data. Using sample data instead.",
+                                  variant: "destructive"
+                                });
+                              }
+                            } else {
+                              // Fallback - fetch from hospital dashboard data
+                              fetch(`${backendUrl}/appointments`)
+                                .then(response => response.json())
+                                .then(data => {
+                                  localStorage.setItem('admin_appointments', JSON.stringify(data));
+                                  appointmentsData = [
+                                    ['Date', 'Doctor', 'Patient', 'Status', 'Type'],
+                                    ...data.map(app => [
+                                      new Date(app.start || app.date).toISOString().split('T')[0],
+                                      app.doctor || 'N/A',
+                                      app.patient || 'N/A',
+                                      app.status || 'Scheduled',
+                                      app.type || 'Consultation'
+                                    ])
+                                  ];
+                                })
+                                .catch(error => {
+                                  console.error("Error fetching appointments:", error);
+                                });
+                            }
+                            
+                            const csvContent = appointmentsData.map(row => row.join(',')).join('\n');
+                            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                            const link = document.createElement('a');
+                            const url = URL.createObjectURL(blob);
+                            link.setAttribute('href', url);
+                            link.setAttribute('download', 'appointments.csv');
+                            link.style.visibility = 'hidden';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            
+                            toast({
+                              title: "Export Completed",
+                              description: "Appointments data has been exported to CSV format.",
+                            });
+                          }} 
+                          variant="outline" 
+                          className="flex-1"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Export Appointments
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                  
@@ -1096,9 +1240,20 @@ const AdminDashboard = () => {
                                 <TableCell className="max-w-xs truncate">{item.comment}</TableCell>
                                 <TableCell>{new Date(item.date).toLocaleDateString()}</TableCell>
                                 <TableCell>
-                                  <Badge variant={item.sentiment === "positive" ? "default" : "secondary"}>
-                                    {item.sentiment}
-                                  </Badge>
+                                  <div className="flex items-center space-x-2">
+                                    <Badge variant={item.sentiment === "positive" ? "default" : "secondary"}>
+                                      {item.sentiment}
+                                    </Badge>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => {
+                                        // Button clicked, but no action for now
+                                      }}
+                                    >
+                                      Reply
+                                    </Button>
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             ))
